@@ -1,0 +1,27 @@
+# Pinned to the versions this project was developed and measured against.
+# Python 3.9 on Apple Silicon (arm64).
+#
+# XGBoost additionally needs the OpenMP runtime, which pip cannot supply:
+#   macOS   brew install libomp
+#   Linux   usually already present via libgomp
+
+# --- data ---
+datasets==4.5.0
+pandas==2.3.3
+numpy==2.0.2
+
+# --- classical models ---
+scikit-learn==1.6.1
+xgboost==2.1.4
+joblib==1.5.3
+
+# --- transformer ---
+torch==2.8.0
+transformers==4.57.6
+accelerate==1.10.1
+
+# --- explainability ---
+lime==0.2.0.1
+
+# --- figures ---
+matplotlib==3.9.4

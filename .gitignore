@@ -1,0 +1,38 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Virtual environment (882 MB — never commit) ---
+.venv/
+venv/
+env/
+
+# --- Trained model weights / large binaries ---
+# models/distilbert alone is 256 MB
+models/distilbert/
+models/_checkpoints/
+*.joblib
+*.pt
+*.bin
+*.safetensors
+
+# keep the small model-selection record
+!models/selected.json
+
+# --- Transient scratch ---
+.cache/
+
+# --- Generated outputs ---
+explanations/*.html
+results/*.png
+results/*.csv
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+.vscode/

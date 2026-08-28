@@ -1,0 +1,90 @@
+{
+  "LogisticRegression": {
+    "faithfulness": {
+      "mean_drop": 0.23212634149548533,
+      "min_drop": 0.16182534513250002,
+      "n_texts": 8,
+      "median_sharpness": 0.11998835000265255,
+      "mean_confidence": 0.693301149786384,
+      "confidence_sharpness_r": -0.23762255731836476
+    },
+    "stability": {
+      "mean_weight_correlation": 0.9972368832837883,
+      "min_weight_correlation": 0.9937529843252304,
+      "mean_word_overlap": 0.9166666666666666,
+      "n_seeds": 3,
+      "n_texts": 4
+    },
+    "register": {
+      "positive": 3,
+      "checked": 4,
+      "rate": 0.75
+    }
+  },
+  "LinearSVM": {
+    "faithfulness": {
+      "mean_drop": 0.47542693443862677,
+      "min_drop": 0.18626437411763908,
+      "n_texts": 8,
+      "median_sharpness": 0.2300850825811605,
+      "mean_confidence": 0.9121054255944205,
+      "confidence_sharpness_r": -0.21981107274693945
+    },
+    "stability": {
+      "mean_weight_correlation": 0.993335749429919,
+      "min_weight_correlation": 0.9836097265393535,
+      "mean_word_overlap": 0.8250000000000001,
+      "n_seeds": 3,
+      "n_texts": 4
+    },
+    "register": {
+      "positive": 2,
+      "checked": 3,
+      "rate": 0.6666666666666666
+    }
+  },
+  "XGBoost": {
+    "faithfulness": {
+      "mean_drop": 0.2508186250925064,
+      "min_drop": 0.012704849243164062,
+      "n_texts": 8,
+      "median_sharpness": 0.13250492902651445,
+      "mean_confidence": 0.986770510673523,
+      "confidence_sharpness_r": 0.4014499280966927
+    },
+    "stability": {
+      "mean_weight_correlation": 0.9245765812584333,
+      "min_weight_correlation": 0.6619308787328946,
+      "mean_word_overlap": 0.8500000000000001,
+      "n_seeds": 3,
+      "n_texts": 4
+    },
+    "register": {
+      "positive": 3,
+      "checked": 3,
+      "rate": 1.0
+    }
+  },
+  "DistilBERT": {
+    "faithfulness": {
+      "mean_drop": 0.1735573154874146,
+      "min_drop": 0.00030410289764404297,
+      "n_texts": 8,
+      "median_sharpness": 0.23887605950468832,
+      "mean_confidence": 0.9987941533327103,
+      "confidence_sharpness_r": -0.05165947154107511
+    },
+    "stability": {
+      "mean_weight_correlation": 0.5572221218032588,
+      "min_weight_correlation": -0.3600993085699352,
+      "mean_word_overlap": 0.65,
+      "n_seeds": 3,
+      "n_texts": 4
+    },
+    "register": {
+      "positive": 3,
+      "checked": 4,
+      "rate": 0.75
+    }
+  }
+}

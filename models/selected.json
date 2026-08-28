@@ -1,0 +1,50 @@
+{
+  "selected": "XGBoost",
+  "selected_by": "TOPSIS closeness coefficient",
+  "selection_note": "TOPSIS is used to make the final choice because it works from the raw measurements and can separate models the linguistic scale rates identically.",
+  "importance": {
+    "accuracy": "very high",
+    "f1": "high",
+    "latency_ms": "medium",
+    "size_mb": "low",
+    "lime_seconds": "medium"
+  },
+  "crisp_weights": {
+    "accuracy": 0.29411764705882354,
+    "f1": 0.24705882352941175,
+    "latency_ms": 0.1764705882352941,
+    "size_mb": 0.10588235294117646,
+    "lime_seconds": 0.1764705882352941
+  },
+  "topsis_ranking": [
+    "XGBoost",
+    "LinearSVM",
+    "LogisticRegression",
+    "DistilBERT"
+  ],
+  "fuzzy_ranking": [
+    "LogisticRegression",
+    "XGBoost",
+    "LinearSVM",
+    "DistilBERT"
+  ],
+  "topsis_closeness": {
+    "LogisticRegression": 0.9513671788999798,
+    "LinearSVM": 0.9521258656367347,
+    "XGBoost": 0.9684569297068165,
+    "DistilBERT": 0.0486328211000202
+  },
+  "fuzzy_closeness": {
+    "LogisticRegression": 0.7133878883162937,
+    "LinearSVM": 0.6368162151228146,
+    "XGBoost": 0.7133878883162937,
+    "DistilBERT": 0.2866121116837064
+  },
+  "fuzzy_ties": [
+    [
+      "LogisticRegression",
+      "XGBoost"
+    ]
+  ],
+  "rankings_agree": false
+}
