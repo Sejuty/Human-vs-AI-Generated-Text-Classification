@@ -1,0 +1,446 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage[utf8]{inputenc}
+\usepackage{xcolor}
+\usepackage{float}
+
+\usepackage{graphicx}  % Add in your preamble if not already present
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+\begin{document}
+
+\title{Human vs AI-Generated Text Classification Using Multi-Criteria Model Selection and LIME-Based Explainability\\
+{\footnotesize \textsuperscript{}}
+%\thanks{Identify applicable funding agency here. If none, delete this.}
+}
+
+\author{
+\IEEEauthorblockN{
+\begin{tabular}{c c c}
+Sejuty  & Maria Monowara Osmita \\
+\textit{20210104012} & \textit{1000062944}\\
+Group-1 & Group-1 
+\end{tabular}
+}
+\\[2ex] % space between rows
+\IEEEauthorblockN{
+%\begin{tabular}{c c}
+% &  \\
+%\textit{} & \textit{} \\
+%Group-1 & Group-1
+%\end{tabular}
+}
+}
+
+
+\maketitle
+
+\begin{abstract}
+The rising complexity of the language models has led to the confusion between AI-generated text and human-generated text, leading to threats like plagiarism detection and false information. The paper proposes a framework for classifying human-written text against AI-written text that combines model building, multiple criteria decision analysis, and Explainable AI in one pipeline. Utilizing Human-ChatGPT Comparison Corpus (HC3), four proposed models: Logistic Regression, Linear SVM, XGBoost, and a Fine-Tuned DistilBERT transformer are trained and tested using a common 3,000 samples dataset.However, while DistilBERT has the best test accuracy at 97.83\%, it is much slower, bigger and more costly to explain than all other classical models as shown by non-overlapping confidence intervals. Instead of selecting a model based solely on its accuracy, this research employs TOPSIS and Fuzzy TOPSIS methods to compare all five candidate models according to five different criteria – test accuracy, F1-score, inference time, model size and explanation generation time. Both methods choose XGBoost as the most versatile model for implementation with sensitivity analysis proving the choice to be consistent for almost any weight ratio between quality and cost. Finally, LIME explanations are employed for each prediction generated and tested using deletion-based faithfulness testing and cross-seed analysis. This proves that while the most accurate model may not always be the most suitable one to implement, explanation quality should also be considered among the other criteria.
+\end{abstract}
+
+\begin{IEEEkeywords}
+ Smart Parking, Internet of Things (IoT), Raspberry Pi, ESP32, License Plate Recognition, OCR, Firebase, Reservation System, Smart City.
+\end{IEEEkeywords}
+
+\section{Introduction}
+The rapid advancement of Large Language Models such as ChatGPT has fundamentally changed the way textual content is created and consumed. AI-generated text is now widely used in education, research, customer support, content creation and online communication. While these systems offer benefits in terms of productivity and accessibility they also introduce challenges related to authorship verification, academic integrity, misinformation and automated content generation. As modern language models continue to improve, distinguishing human-written text from AI-generated text has become increasingly difficult creating a growing need for detection systems.
+
+Human-versus-AI text classification has become a problem in Natural Language Processing. Researchers use ways to solve it. Some use machine learning methods that rely on hand‑made textual features. Others use transformer based deep learning models that can learn the context of words. Transformer models often do better at classification.. They need a lot of computing power, memory and time to run. Because of this picking a model only because it is the accurate is not always the best choice. In life we also need models that run fast and can be understood by people. Human-versus-AI text classification must balance accuracy with efficiency and explainability.
+
+In addition to classification performance, transparency has become a critical requirement for modern AI systems. Many high-performing models operate as black boxes making it difficult to understand the reasoning behind their predictions. In applications involving content verification, plagiarism detection and AI-generated content monitoring, users and decision-makers often require explanations that justify why a particular text has been classified as human-written or AI-generated. Explainable Artificial Intelligence (XAI) techniques provide a means to address this challenge by revealing the features that influence model decisions.
+
+In this work, we introduce a framework for human versus AI-generated text classification using the HC3 (Human-ChatGPT Comparison Corpus) dataset. The framework brings together machine learning, deep learning, criteria decision analysis and explainable artificial intelligence into one single pipeline. We test four different classification models on the same dataset. These models are Logistic Regression, Linear Support Vector Machine (SVM), XGBoost and DistilBERT. Rather than selecting the deployment model based solely on accuracy, multiple performance and cost-related criteria are considered including classification quality, inference latency, model size and explanation generation time.
+
+To identify the most suitable model for deployment TOPSIS and Fuzzy TOPSIS are employed as multi-criteria decision-making techniques.These methods allow a comparison of competing models by looking at both how well they predict and how much they cost to run.
+In addition LIME is added to give explanations at the word level for each prediction. The explanations that LIME creates are then checked using deletion-based analysis to make sure that the words the model points to really affect its decisions.
+
+The proposed framework integrates classification, model selection and explainability to provide an efficient and transparent solution for human versus AI-generated text detection.
+
+
+
+
+\section{LITERATURE SURVEY}
+
+\textbf{Chen} (2000) presented an extended version of the conventional TOPSIS method for decision-making in fuzzy environments. In this paper, linguistic variables and triangular fuzzy numbers were employed to express the importance of the evaluation criteria and the ratings of the alternatives, thus enabling the uncertainty and vagueness present in human judgments to be included in the decision-making process. The author developed a distance measurement method based on the vertices in order to compute the distance of each alternative from the Fuzzy Positive Ideal Solution (FPIS) and the Fuzzy Negative Ideal Solution (FNIS). A closeness coefficient was then calculated on the basis of these distances so as to rank the alternatives and determine the most appropriate one. The Fuzzy TOPSIS method proposed has proven its effectiveness in dealing with multi-criteria decision-making problems in which precise numerical evaluations are hard to obtain and has therefore become one of the most widely used fuzzy ranking techniques in decision analysis.
+
+\textbf{Chen and Guestrin } in 2016 presented XGBoost, a gradient boosting framework that is scalable and has been developed to boost both predictive performance and computational efficiency. The new system includes regularization, sparsity-aware learning, weighted quantile sketching and parallel tree construction in order to increase model accuracy and at the same time decrease training time. Experiments carried out on a number of large-scale datasets showed that XGBoost obtained state-of-the-art results in classification while using considerably fewer computational resources than other existing tree boosting methods. The study pointed out that XGBoost is efficient at dealing with high-dimensional and sparse data which is why it has become one of the most widely used machine learning algorithms for classification and prediction tasks. Because of the balance it achieves between accuracy, scalability and computational efficiency, XGBoost has been widely employed in both research and in practical applications.
+
+
+ \textbf{Guo et al.} 2023 presented the Human ChatGPT Comparison Corpus (HC3), a large-scale dataset which was created in order to compare responses written by humans with those generated by ChatGPT across a number of fields such as open-domain question answering, finance, medicine, law, psychology, and computer science. The dataset includes tens of thousands of question–answer pairs that have been gathered from both human experts and ChatGPT, allowing for a thorough examination of the linguistic differences between human and AI-generated text. Besides building the corpus, the researchers carried out human evaluations, performed linguistic analyses, and developed a number of detection models in order to tell apart AI-generated content from human-written responses. Their results showed that AI-generated text has certain identifiable features that can be used for automated detection, and the HC3 dataset that has been made publicly available serves as a useful benchmark for future work in the area of AI text detection and explainable classification systems.
+
+\textbf{Ribeiro et al. }(2016) put forward Local Interpretable Model-Agnostic Explanations (LIME), a technique for enhancing the interpretability and trustworthiness of black-box machine learning models. This method explains individual predictions by learning an interpretable model in the neighbourhood of the particular instance in question, so that people can see which input elements, for example words in text or areas in images, have contributed to the model's decision. The authors also presented SP-LIME, a submodular selection method which is used to find representative and non-redundant instances in order to give a more comprehensive understanding of how the model behaves. The approaches were tested on text and image classification tasks using both simulated experiments and studies involving human subjects. The results indicated that LIME was able to generate accurate explanations, enabled users to evaluate the trustworthiness of individual predictions, helped in selecting models that perform better, and allowed non-experts to improve unreliable classifiers by means of feature engineering. The study showed that interpretable and model-agnostic explanations are important for understanding and assessing complex machine learning systems.
+
+DistilBERT was created by \textbf{Sanh et al.} (2019) which is the reduced version of the BERT language model that aims at reducing the computational complexity and the required memory resources of the large pre-trained language models. The process of knowledge distillation took place in the pre-training phase of the model when a smaller student network is trained using a larger teacher network as a teacher, and the triple loss consisting of language modeling, distillation, and cosine-distance losses was proposed. DistilBERT utilizes the similar architecture of Transformer as the BERT, however uses less than half of the layers in comparison with the teacher model and is initialized through the selection of certain layers from the teacher model. The results achieved on the GLUE benchmark showed that DistilBERT was able to preserve about 97\% of the language understanding capabilities of BERT using only 40\% of its parameters and being 60\% faster in terms of inference.
+
+\textbf{Zadeh} (1965) has developed the concept of fuzzy sets as a mathematical formulation for the representation of classes of objects, which have a membership that cannot be defined accurately by means of conventional set theory. In contrast to the conventional sets where an element either belongs to a set or not, the fuzzy sets assign a degree of membership, which varies between 0 and 1, to every element of the set. The paper discusses the basic operations on the fuzzy sets, such as inclusion, union, intersection, complementation and the algebraic operations, and their mathematical properties. The author also generalizes some of the basic concepts of set theory, such as relation and convexity, on the fuzzy sets and presents a separation theorem for convex fuzzy sets without assuming the disjointness of the sets. The suggested model represents an adequate tool to represent the impreciseness due to the lack of sharply defined membership and has possible applications in areas like pattern classification, information processing and optimization.
+
+
+
+\section{Dataset}
+
+
+\subsection{\textbf{Data Source}}
+
+This study uses the HC3 dataset also known as the Human-ChatGPT Comparison Corpus, which was introduced by Guo et al. The dataset includes pairs of responses—both human-written and generated by ChatGPT—to the questions. This setup makes it a good resource for classifying whether a text was written by a human or by an AI. Since both types of responses are based on the prompts the dataset helps reduce bias due to topic differences. This allows for an accurate comparison, between human and AI authorship.
+
+\subsection{\textbf{Dataset Construction Pipeline}}
+
+The original HC3 records were changed into a dataset that can be used for modeling by going through a four-step process to get it ready.
+
+\subsubsection{Flattening}
+
+Each HC3 record contains a question along with multiple human-written and AI-generated responses. To create a supervised classification dataset, every response was extracted as an independent sample and assigned a class label corresponding to its origin. Each row therefore represents a single complete response rather than a collection of responses.
+
+\subsubsection{Cleaning}
+Cleaning was carried out by removing any spaces at the beginning and at the end of each response. Empty or blank entries were thrown away so that only samples with text remained.
+
+\subsubsection{Class Balancing}
+
+To keep the model from being affected by class imbalance we chose the number of samples from each class. We kept 1500 human‑written responses and 1500 AI‑generated responses giving us a set of 3000 samples.
+
+\subsubsection{Splitting}
+The balanced dataset was divided into training and testing subsets using an 80:20 stratified split with a fixed random seed (random\_state = 42). Stratification made sure that both subsets kept the class distribution. Stratification also let us compare all candidate models fairly.
+\begin{table}[htbp]
+\caption{Dataset Composition After Preprocessing}
+\label{tab:dataset}
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+\textbf{Dataset} & \textbf{Human} & \textbf{AI} & \textbf{Total} \\
+\hline
+Training (80\%) & 1200 & 1200 & 2400 \\
+\hline
+Testing (20\%) & 300 & 300 & 600 \\
+\hline
+Total & 1500 & 1500 & 3000 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\section{METHODOLOGY}
+
+
+
+The study has four phases: feature extraction, model development, model selection and explainability analysis. The entire process starts with the preprocessed HC3 dataset. It then moves through classification multi-criteria decision analysis and explanation generation. The goal is to find a model that is accurate, efficient and interpretable for distinguishing between human generated and AI generated text.
+
+
+\subsection{\textbf{Feature Extraction}}
+Textual data must be transformed into numerical representations before being processed by machine learning algorithms.For Logistic Regression, Linear SVM and XGBoost, the Term Frequency–Inverse Document Frequency (TF-IDF) technique was employed to convert text documents into feature vectors. Both unigram and bigram representations were extracted with the vocabulary limited to 5000 features.This representation shows the importance of words and short phrases while keeping the computation fast. All three classical models have the same front end so any difference in accuracy between them is due to the learning algorithm not the feature representation.
+
+\subsection{\textbf{Model Development}}
+
+
+
+\begin{table}[htbp]
+\caption{Candidate Models Used in This Study}
+\label{tab:candidate_models}
+\centering
+\footnotesize
+\begin{tabular}{|p{2.2cm}|p{2.6cm}|p{2.2cm}|}
+\hline
+\textbf{Model} & \textbf{Representation} & \textbf{Classifier} \\
+\hline
+Logistic Regression &
+TF-IDF (1--2 grams, 5000 features) &
+Logistic Regression \\
+\hline
+Linear SVM &
+TF-IDF (1--2 grams, 5000 features) &
+LinearSVC + Calibration \\
+\hline
+XGBoost &
+TF-IDF (1--2 grams, 5000 features) &
+300 trees, depth 6, LR=0.1 \\
+\hline
+DistilBERT &
+Word-piece embeddings &
+Fine-tuned Transformer \\
+\hline
+\end{tabular}
+\end{table}
+
+To investigate different approaches for human versus AI generated text classification, four candidate models were developed: Logistic Regression, Linear Support Vector Machine (SVM), XGBoost and DistilBERT. Logistic Regression was served as the baseline model because it is simple and works well for classifying text that has a lot of features.Linear SVM was included as a margin-based classifier capable of finding an optimal decision boundary between the two classes. XGBoost was employed as an ensemble learning method that combines multiple weak learners to improve predictive performance.
+Moreover, DistilBERT was fine-tuned using the HC3 dataset in order to assess the effectiveness of transformer-based contextual language representations.DistilBERT unlike bag-of-words models builds a representation of each word from context using self-attention. This allows it to capture information about word order and phrasing that a TF-IDF representation throws away by design. The use of classical machine learning and deep learning models allowed for a complete comparison across different learning paradigms.
+
+\subsection{\textbf{Performance Evaluation}}
+
+To make the comparison fair, all candidate models were trained and tested on the same data splits. Accuracy and F1-score were used to evaluate the model performance in terms of effectiveness of classification. But predictive performance alone does not determine if a model is fit for deployment. Thus we also measured other operational metrics like inference latency, model size and explanation generation time. These criteria are more comprehensive for evaluating the practical usability of each model.
+
+
+\subsection{\textbf{Model Selection Using TOPSIS and Fuzzy TOPSIS}}
+
+
+This study applied a multi-criteria decision making framework instead of selecting a model based on predictive accuracy only. TOPSIS and Fuzzy TOPSIS were used to rank the candidate models based on five evaluation metrics: Accuracy, F1-score, Inference Latency, Model Size and Explanation Time. Benefit criteria were accuracy and F1-score which were maximized while latency, model size and explanation time were cost criteria and minimized. By considering multiple criteria simultaneously, the ranking process identified the model that achieved the best balance between classification performance, computational efficiency and interpretability.
+
+\subsection{\textbf{Explainability Analysis and Validation}}
+Local Interpretable Model-agnostic Explanations (LIME) were used to explain individual classification decisions, so as to increase transparency and user-trust. LIME builds local surrogate explanations around a prediction and identifies the words that most strongly contribute to the final decision. Such explanations help to understand why a text is classified as human-written or AI-generated.
+
+We performed a deletion-based validation procedure to assess the reliability of the generated explanations. Words identified as important by LIME were removed from the input text and the resulting change in prediction confidence was measured. In addition, stability and sharpness analyzes are carried out to assess the consistency of explanations. These validation processes help to ensure that the highlighted features actually influence the model’s predictions.
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\linewidth]{AI_HUMAN.drawio.png}
+    \caption{Project Block Diagram}
+    \label{fig:placeholder}
+\end{figure}
+
+
+
+
+ 
+\section{Results \& Discussions}
+
+\subsection{\textbf{Classification Performance}}
+All four candidate models were evaluated on the same 600-row held-out test set. The given Table shows the accuracy, F1-score, sensitivity and specificity for each model.
+
+\begin{table}[htbp]
+\caption{Classification Performance on the Test Set}
+\label{tab:classification_results}
+\centering
+\begin{tabular}{lcccc}
+\hline
+\textbf{Model} & \textbf{Accuracy} & \textbf{F1-Score} & \textbf{Sensitivity} & \textbf{Specificity} \\
+\hline
+Logistic Regression & 0.9117 & 0.9112 & 0.9067 & 0.9167 \\
+Linear SVM & 0.9267 & 0.9272 & 0.9333 & 0.9200 \\
+XGBoost & 0.9367 & 0.9354 & 0.9167 & 0.9567 \\
+DistilBERT & \textbf{0.9783} & \textbf{0.9788} & \textbf{1.0000} & 0.9567 \\
+\hline
+\end{tabular}
+\end{table}
+
+DistilBERT achieved the highest accuracy among all four models, with perfect sensitivity (it correctly identified every AI-generated response in the test set). The three classical models performed close to each other, with XGBoost slightly ahead of Linear SVM and Logistic Regression.
+
+
+
+\subsection{\textbf{Statistical Significance Analysis}}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\linewidth]{quality_intervals.png}
+    \caption{Project Block Diagram}
+    \label{fig:placeholder}
+\end{figure}
+
+\begin{table}[htbp]
+\caption{95\% Bootstrap Confidence Intervals (1000 Resamples)}
+\label{tab:confidence_intervals}
+\centering
+\begin{tabular}{lcc}
+\hline
+\textbf{Model} & \textbf{Lower Bound} & \textbf{Upper Bound} \\
+\hline
+Logistic Regression & 0.8883 & 0.9350 \\
+Linear SVM & 0.9050 & 0.9483 \\
+XGBoost & 0.9183 & 0.9567 \\
+DistilBERT & \textbf{0.9667} & \textbf{0.9900} \\
+\hline
+\end{tabular}
+\end{table}
+
+The confidence intervals of the three classical models overlap with each other and this means the relative ranking of the models is not statistically significant at this sample size. The interval of DistilBERT does not intersect with any of the classical models thus the improvement in accuracy is real and not due to random variation of the test set.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\linewidth]{confusion_matrices.png}
+    \caption{Project Block Diagram}
+    \label{fig:placeholder}
+\end{figure}
+
+
+We also observed that all 13 errors of DistilBERT were in the same direction – human-written text misclassified as AI-generated. Never missed an actual AI generated sample. In an application such as plagiarism detection, this kind of error is more serious since it involves falsely accusing a human author.
+
+\subsection{\textbf{Multi-Criteria Model Selection Results}}
+
+Accuracy alone does not capture the full picture, since the test set is exactly balanced (300/300), which makes accuracy mathematically equal to the average of sensitivity and specificity. To make a fair deployment decision, cost criteria — inference latency, model size and explanation time were also measured.
+
+
+\usepackage{graphicx}
+\begin{table}[htbp]
+\caption{Quality and Cost Criteria}
+\label{tab:quality_cost}
+\centering
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lccccc}
+\hline
+Model & Accuracy & F1 & Latency (ms) & Size (MB) & LIME Time (s) \\
+\hline
+Logistic Regression & 0.9117 & 0.9112 & 0.285 & 0.22 & 0.051 \\
+Linear SVM & 0.9267 & 0.9272 & 1.067 & 0.37 & 0.053 \\
+XGBoost & 0.9367 & 0.9354 & 0.370 & 0.65 & 0.053 \\
+DistilBERT & 0.9783 & 0.9788 & 17.272 & 256.33 & 10.639 \\
+\hline
+\end{tabular}
+}
+\end{table}
+
+
+DistilBERT sits in accuracy at the top but 61 times slower, 1168 times larger and 208 times more expensive to explain than the fastest classical model. This trade-off is exactly why a single metric comparison is not enough and why TOPSIS and Fuzzy TOPSIS were applied.
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\columnwidth]{criteria_comparison.png}
+\caption{Accuracy versus per-instance explanation cost. DistilBERT achieves the highest accuracy but at substantially higher explanation cost than the classical models.}
+\label{fig:accuracy_vs_cost}
+\end{figure}
+
+
+\begin{table}[htbp]
+\caption{TOPSIS Ranking Results}
+\label{tab:topsis_results}
+\centering
+\begin{tabular}{ccc}
+\hline
+\textbf{Rank} & \textbf{Model} & \textbf{CC} \\
+\hline
+1 & XGBoost & 0.9685 \\
+2 & Linear SVM & 0.9521 \\
+3 & Logistic Regression & 0.9514 \\
+4 & DistilBERT & 0.0486 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\begin{table}[H]
+\caption{Fuzzy TOPSIS Ranking Results}
+\label{tab:fuzzy_topsis_results}
+\centering
+\begin{tabular}{ccc}
+\hline
+\textbf{Rank} & \textbf{Model} & \textbf{CC} \\
+\hline
+1 (tie) & Logistic Regression & 0.7134 \\
+1 (tie) & XGBoost & 0.7134 \\
+3 & Linear SVM & 0.6368 \\
+4 & DistilBERT & 0.2866 \\
+\hline
+\end{tabular}
+\end{table}
+
+The ranking results of TOPSIS and Fuzzy TOPSIS are shown in Tables VI and VII. While DistilBERT achieved the best classification accuracy, it was ranked last by both methods because of its significantly larger inference latency, model size and explanation time. In contrast, XGBoost always got one of the highest closeness coefficients with competitive prediction performance and deployment cost. Hence, XGBoost was chosen as the best model for deployment which proves that the most accurate model is not always the most practical choice when considering multiple performance and cost criteria together.
+
+\subsection{\textbf{Sensitivity to the Quality}}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\linewidth]{sensitivity.png}
+    \caption{Project Block Diagram}
+    \label{fig:placeholder}
+\end{figure}
+
+
+To verify that the selection of XGBoost is not sensitive to the specific weights chosen in Section C, the weight given to quality criteria (accuracy and F1) was varied from 0 to 1, with the remaining weight distributed across the cost criteria. Both TOPSIS and Fuzzy TOPSIS were re-run across this range.
+
+XGBoost remained the top-ranked model across nearly the entire range, losing its position only when the quality weight exceeded 0.97 under TOPSIS or 0.83 under Fuzzy TOPSIS that is only when cost was given almost no importance at all. This confirms that the selection of XGBoost is a stable decision and not an artifact of one specific weighting choice.
+
+
+
+
+\subsection{\textbf{Explainability Analysis}}
+Local Interpretable Model-agnostic Explanations (LIME) were applied to explain the individual predictions and enhance the transparency of the classification process. LIME works by changing the input text and seeing how that changes prediction probabilities and it finds the words that affect a model’s decision the most. Candidate models include classical machine learning algorithms as well as a transformer-based model. A model-agnostic explanation approach was therefore necessary to provide a consistent interpretation framework for all models.
+
+To assess the quality of the explanations generated four criteria were considered: faithfulness, stability, sharpness and Mean Confidence. The faithfulness was measured by a deletion test, the stability by the consistency of explanations between runs, the sharpness by the strength of the most influential explanatory feature and mean confidence represented the average confidence of model predictions.
+
+
+\begin{table}[htbp]
+\caption{LIME Explanation Validation Results}
+\label{tab:lime_validation}
+\centering
+\footnotesize
+\begin{tabular}{lcccc}
+\hline
+Model & Faith. & Sharp. & Stab. & Mean Conf. \\
+\hline
+Logistic Regression & +0.2321 & 0.1200 & 0.997 & 0.693 \\
+Linear SVM & +0.4754 & 0.2301 & 0.993 & 0.912 \\
+XGBoost & +0.2508 & 0.1325 & 0.925 & 0.987 \\
+DistilBERT & +0.1736 & 0.2389 & 0.557 & 0.999 \\
+\hline
+\end{tabular}
+\end{table}
+
+
+As shown in Table VIII, all models achieved positive faithfulness scores showing that the highlighted words had indeed an effect on the prediction results. XGBoost was found to be a good compromise between faithfulness (+0.2508) and stability (0.925) which supports its selection as the deployment model. DistilBERT achieved the highest mean confidence (0.999) but the least stable explanations (0.557) showing that high confidence doesn’t always correspond to the most consistent explanations.
+
+The results emphasise the necessity of choosing a model for deployment based on both predictive performance and explanation quality. A model might have higher classification accuracy but produce less stable explanations across different perturbations. Therefore, explainability is an important complementary criterion for the evaluation of human versus AI-generated text detection systems.
+
+
+
+\section{Limitations}
+
+
+However there are several limitations despite the promising results of this study. Firstly the analysis was conducted on the HC3 dataset only which is composed of ChatGPT-generated text and therefore does not necessarily reflect outputs from other large language models (e.g., Gemini, Claude, or LLaMA). Secondly the evaluation was mostly on long-form responses so the performance might differ from the reported numbers on short or out-of-distribution texts. Thirdly LIME explanations are inherently local and stochastic i.e. the explanations can change from one run to the next. Finally, we collected computational measurements such as inference latency and explanation time on a single hardware platform, which may vary across different environments.
+
+
+\section{Conclusion \& Future Work}
+The study was on human vs AI classification of text using four models: Logistic Regression, Linear SVM, XGBoost and DistilBERT. The experimental results indicated that DistilBERT achieved the highest classification performance with 97.83\%. However due to the performance factors and deployment-related factors such as latency, model size and explanation time, TOPSIS and Fuzzy TOPSIS found XGBoost as the most suitable model. In addition, LIME-based explainability analysis provided interpretable explanations of model predictions and highlighted the significance of considering the quality of explanations and predictive performance.The results show that the best model is not always the most practical to deploy in real-world scenarios. Future work may include evaluating the approach on datasets including text generated by other large language models such as Gemini, Claude, and LLaMA and exploring alternative explainability techniques and lightweight transformer architectures to further improve interpretability and deployment efficiency.
+
+\begin{thebibliography}{00}
+\bibitem{b1}  Chen-Tung Chen, ``Extensions of the TOPSIS for group decision-making
+under fuzzy environment,''Department of Information Management, The Overseas Chinese College of Commerce, 100, Chiao Kwang Road,
+Taichung, Taiwan, ROC, https://www.karlancer.com/api/file/1704640226-A96K.
+
+
+
+\bibitem{b2} Tianqi Chen, Carlos Guestrin, XGBoost: A Scalable Tree Boosting System
+using Probability Curvature, https://dl.acm.org/doi/pdf/10.1145/2939672.2939785
+
+
+
+
+
+\bibitem{b3} Biyang Guo1†∗, Xin Zhang2∗
+, Ziyuan Wang1∗
+, Minqi Jiang1∗
+, Jinran Nie3∗
+Yuxuan Ding4
+, Jianwei Yue5
+, Yupeng Wu6,''How Close is ChatGPT to Human Experts?
+Comparison Corpus, Evaluation, and Detection, https://arxiv.org/pdf/2301.07597.
+
+
+
+
+\bibitem{b4} Kristina Schaaff1  · Tim Schlippe1
+ · Lorenz Mindner1, ``Classification of human‑ and AI‑generated texts for different
+languages and domains, https://link.springer.com/content/pdf/10.1007/s10772-024-10143-3.
+
+
+
+
+\bibitem{b5}Biyang Guo1†∗, Xin Zhang2∗
+, Ziyuan Wang1∗
+, Minqi Jiang1∗
+, Jinran Nie3∗
+Yuxuan Ding4
+, Jianwei Yue5
+, Yupeng Wu6, ``Ribeiro, M. T., Singh, S., \& Guestrin, C. (2016). "Why Should I Trust You?": Explaining the Predictions of Any Classifier. Proceedings of KDD '16, 1135–1144., https://arxiv.org/pdf/2301.07597
+
+
+
+
+
+\bibitem{b6}Victor SANH, Lysandre DEBUT, Julien CHAUMOND, Thomas WOLF. "DistilBERT, a distilled version of BERT: smaller,
+faster, cheaper and lighter", https://arxiv.org/pdf/1910.01108 
+
+
+
+\bibitem{b7} L. A. ZADEH , Fuzzy Sets* , Zadeh, L. A. (1965). Fuzzy sets. Information and Control, 8(3), 338–353.
+
+
+\end{thebibliography}
+\vspace{12pt}
+
+
+\end{document}
