@@ -1,20 +1,5 @@
-"""
-make_figures.py
----------------
-Generates the charts used in docs/REPORT.md from results/decision_matrix.json.
-
-Reads the saved measurements rather than re-running benchmark.py, for the
-same reason select_model.py does: measuring is slow (LIME timings alone
-take minutes), and every figure should describe exactly the same numbers
-the report quotes. Re-measuring for the figures would risk charts that
-disagree with the tables beside them.
-
-Produces:
-    confusion_matrices.png    per-model confusion matrices
-    criteria_comparison.png   the five criteria, cost ones on a log scale
-    quality_intervals.png     accuracy with bootstrap confidence intervals
-    linguistic_matrix.png     the linguistic ratings fuzzy TOPSIS operates on
-"""
+"""Generates the charts used in docs/REPORT.md from
+results/decision_matrix.json."""
 
 import json
 import os
@@ -56,13 +41,7 @@ def plot_confusion_matrices(payload, path):
 
 
 def plot_criteria(payload, path):
-    """
-    The five criteria side by side, with cost criteria on a log scale
-    because they span three orders of magnitude where the quality
-    criteria span almost none. That asymmetry is the whole shape of the
-    decision: every model is about as accurate as every other, and they
-    differ enormously in what they cost.
-    """
+    """The five criteria side by side."""
     names = list(payload["models"])
     criteria = payload["criteria"]
     fig, axes = plt.subplots(1, 5, figsize=(19, 4))
@@ -91,10 +70,8 @@ def plot_criteria(payload, path):
 
 
 def plot_quality_intervals(payload, path):
-    """
-    Accuracy with 95% bootstrap intervals, which show which gaps between
-    models are real and which are within sampling noise.
-    """
+    """Accuracy with 95% bootstrap intervals, which show which gaps between
+    models are real and which are within sampling noise."""
     names = list(payload["models"])
     points = [payload["models"][n]["crisp"]["accuracy"] for n in names]
     tfns = [payload["models"][n]["intervals"]["accuracy"] for n in names]
@@ -116,13 +93,7 @@ def plot_quality_intervals(payload, path):
 
 
 def plot_linguistic_matrix(payload, path):
-    """
-    The linguistic ratings, as a categorical grid.
-
-    This is the matrix fuzzy TOPSIS actually operates on, and it carries
-    the result better than a table of triples: the eye picks out at once
-    that one model trades two categories of cost for one of quality.
-    """
+    """The linguistic ratings, as a categorical grid."""
     names = list(payload["models"])
     criteria = payload["criteria"]
     order = ["poor", "fair", "good", "very good", "excellent", "outstanding"]

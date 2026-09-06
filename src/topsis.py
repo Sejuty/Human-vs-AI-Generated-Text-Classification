@@ -1,83 +1,4 @@
-"""
-topsis.py
----------
-TOPSIS and fuzzy TOPSIS, in plain numpy with no ML imports, so the
-ranking arithmetic can be checked against published worked examples
-independently of any model. Run this file directly to execute those
-checks.
-
-TOPSIS — Technique for Order Preference by Similarity to Ideal Solution
-(Hwang & Yoon, 1981) — ranks alternatives scored on several criteria at
-once. The idea in one line: construct a hypothetical *ideal* alternative
-taking the best observed value on every criterion and an *anti-ideal*
-taking the worst, then rank real alternatives by how close they sit to
-the first and how far from the second.
-
-    1. Normalise the decision matrix, so criteria measured in different
-       units (percent, milliseconds, megabytes) become comparable.
-    2. Multiply by the criterion weights.
-    3. Build the ideal A+ and anti-ideal A-.
-    4. Measure each alternative's distance d+ to A+ and d- to A-.
-    5. Closeness coefficient CC = d- / (d+ + d-), in [0, 1]. Higher is
-       better; CC = 1 means the alternative *is* the ideal.
-    6. Rank by CC, descending.
-
-Benefit and cost criteria
--------------------------
-Every criterion has a direction. On a *benefit* criterion (accuracy, F1)
-more is better, so the ideal takes the column maximum. On a *cost*
-criterion (latency, model size, explanation time) less is better and the
-ideal takes the column minimum. Reversing this silently inverts the whole
-ranking, which is why direction is a required argument rather than an
-optional flag.
-
-Fuzzy TOPSIS
-------------
-Crisp TOPSIS treats every measurement as exact. Fuzzy TOPSIS (Chen, 2000)
-replaces each entry with a triangular fuzzy number (l, m, u) so a score
-can be a band rather than a point, and replaces each arithmetic operation
-with its componentwise equivalent. The skeleton is unchanged; only the
-arithmetic widens.
-
-Two details distinguish it from the crisp form:
-
-*Normalisation* is linear rather than vector-based, and defined
-piecewise. For a benefit criterion the triangle is divided by the largest
-upper bound in its column; for a cost criterion the smallest lower bound
-becomes the numerator and the components are reversed, so that a small
-raw value maps to a large normalised one. The reversal is what keeps the
-result a valid TFN with l <= m <= u.
-
-*Distance* uses the vertex metric, treating a triangle's three points as
-three coordinates:
-
-    d(a, b) = sqrt( (1/3) * [ (a_l-b_l)^2 + (a_m-b_m)^2 + (a_u-b_u)^2 ] )
-
-The 1/3 keeps the result on the same scale as a single-coordinate
-difference rather than inflating it simply because three numbers are
-being compared. Per-criterion distances are then summed — plain addition,
-since each is already a complete Euclidean distance for its own
-criterion.
-
-Note on the fuzzy ideal. FPIS and FNIS are the componentwise maximum and
-minimum of the *weighted* matrix, taken per criterion. They are sometimes
-fixed at (1,1,1) and (0,0,0) instead, but that shortcut is only valid
-when every criterion is benefit-type and already scaled into [0, 1];
-with any cost criterion present it gives wrong distances. This module
-always computes them.
-
-Direction is handled entirely by the normalisation step, so once the
-matrix is normalised the ideal is the column maximum for every criterion,
-cost criteria included.
-
-References
-----------
-Hwang, C.-L., & Yoon, K. (1981). Multiple Attribute Decision Making:
-Methods and Applications. Springer-Verlag.
-
-Chen, C.-T. (2000). Extensions of the TOPSIS for group decision-making
-under fuzzy environment. Fuzzy Sets and Systems, 114(1), 1-9.
-"""
+"""TOPSIS and fuzzy TOPSIS."""
 
 import numpy as np
 
@@ -94,18 +15,7 @@ def _check_directions(directions, n_criteria):
 
 
 def topsis(matrix, weights, directions):
-    """
-    Crisp TOPSIS.
-
-    matrix:     (m alternatives, n criteria) array of raw scores
-    weights:    length-n; scaled internally to sum to 1, which leaves the
-                closeness coefficients unchanged since scaling every
-                weight scales both distances equally
-    directions: length-n list of BENEFIT / COST
-
-    Returns a dict holding the closeness coefficients and every
-    intermediate table, since the workings matter as much as the answer.
-    """
+    """Crisp TOPSIS."""
     x = np.asarray(matrix, dtype=float)
     m, n = x.shape
     _check_directions(directions, n)
@@ -115,9 +25,8 @@ def topsis(matrix, weights, directions):
         raise ValueError("criterion weights must sum to a positive number")
     w = w / w.sum()
 
-    # Step 1 — vector normalisation: divide each column by its Euclidean
-    # norm, giving unitless values that preserve ratios between
-    # alternatives.
+    # Step 1 — vector normalisation: divide each column by its Euclidean norm,
+    # giving unitless values that preserve ratios between alternatives.
     norms = np.sqrt((x ** 2).sum(axis=0))
     norms[norms == 0] = 1.0  # a constant column carries no information
     r = x / norms
@@ -152,20 +61,7 @@ def topsis(matrix, weights, directions):
 
 
 def fuzzy_topsis(matrix, weights, directions):
-    """
-    Fuzzy TOPSIS over triangular fuzzy numbers.
-
-    matrix:     (m alternatives, n criteria, 3), last axis = (l, m, u)
-                with l <= m <= u
-    weights:    (n, 3) TFN weights, or length-n scalars which are
-                promoted to (w, w, w). Unlike the crisp case these are
-                used as given, not rescaled — TFN weight scales are
-                conventionally stated on their own range (1-9 here) and
-                normalising them would distort the triangles.
-    directions: length-n list of BENEFIT / COST
-
-    Returns the same shape of result dict as `topsis`.
-    """
+    """Fuzzy TOPSIS over triangular fuzzy numbers."""
     x = np.asarray(matrix, dtype=float)
     if x.ndim != 3 or x.shape[2] != 3:
         raise ValueError("fuzzy matrix must have shape (alternatives, criteria, 3)")
@@ -192,9 +88,8 @@ def fuzzy_topsis(matrix, weights, directions):
                 c_star = 1.0
             r[:, j, :] = col / c_star
         else:
-            # Smallest lower bound over each of the alternative's own
-            # three numbers, with the components reversed so the result
-            # stays ordered: a small raw value becomes a large score.
+            # Smallest lower bound over each of the alternative's own three
+            # numbers.
             a_minus = col[:, 0].min()
             safe = np.where(col == 0, np.finfo(float).eps, col)
             r[:, j, 0] = a_minus / safe[:, 2]
@@ -204,9 +99,7 @@ def fuzzy_topsis(matrix, weights, directions):
     # Step 2 — weight, componentwise triangle by triangle.
     v = r * w[None, :, :]
 
-    # Step 3 — FPIS and FNIS, per criterion, componentwise across
-    # alternatives. Direction was already resolved by normalisation, so
-    # the ideal is the maximum for every criterion including cost ones.
+    # Step 3 — FPIS and FNIS, per criterion, componentwise across alternatives.
     fpis = v.max(axis=0)
     fnis = v.min(axis=0)
 
@@ -234,14 +127,7 @@ def fuzzy_topsis(matrix, weights, directions):
 
 
 def find_ties(closeness, tol=1e-9):
-    """
-    Groups of alternatives whose closeness coefficients are equal.
-
-    Ranking by argsort silently imposes an order on tied alternatives,
-    which misrepresents the result — a coarse rating scale can genuinely
-    fail to separate two candidates, and that is worth reporting rather
-    than hiding. Returns a list of index groups, each of length >= 2.
-    """
+    """Groups of alternatives whose closeness coefficients are equal."""
     cc = np.asarray(closeness, dtype=float)
     groups, used = [], set()
     for i in range(len(cc)):
@@ -257,28 +143,7 @@ def find_ties(closeness, tol=1e-9):
 def sensitivity_analysis(matrix, directions, group_a_idx, group_b_idx,
                          base_weights, steps=21, fuzzy_matrix=None,
                          fuzzy_weights=None, fuzzy_directions=None):
-    """
-    Sweep the balance of weight between two groups of criteria.
-
-    Any fixed weighting is a judgement, and the obvious objection to a
-    ranking is that the weights were chosen to produce it. This shifts
-    the total weight given to `group_a_idx` from 0 to 1 while
-    `group_b_idx` takes the remainder, holding the relative weights
-    inside each group fixed, and records the winner at each point.
-
-    The result shows whether a recommendation is stable across a broad
-    band of preferences or turns on a particular trade-off ratio — and
-    if it turns, exactly where.
-
-    `fuzzy_directions` defaults to `directions` but must be given
-    separately whenever the fuzzy matrix encodes direction differently
-    from the raw one — for instance when ratings are phrased as goodness,
-    making every fuzzy criterion a benefit criterion while the raw values
-    still contain cost criteria.
-
-    Not part of TOPSIS itself; a standard robustness check reported
-    alongside it.
-    """
+    """Sweep the balance of weight between two groups of criteria."""
     base = np.asarray(base_weights, dtype=float)
     if fuzzy_directions is None:
         fuzzy_directions = directions
@@ -320,25 +185,10 @@ def sensitivity_analysis(matrix, directions, group_a_idx, group_b_idx,
 
 # ---------------------------------------------------------------------------
 # Checks against published worked examples
-# ---------------------------------------------------------------------------
 
 def _check_crisp_car_example():
-    """
-    The standard car-selection illustration: 4 alternatives, 4 criteria,
-    three benefit and one cost, weights 0.1 / 0.4 / 0.3 / 0.2.
-
-    Published closeness coefficients: 0.74, 0.41, 0.17, 0.45, so the
-    Civic wins despite the Ford scoring better on raw Style and Cost.
-
-    Tolerance note. The published solution rounds its normalised and
-    weighted tables to three decimals before measuring distances, and
-    that rounding propagates: recomputing its own distances from its own
-    printed weighted matrix gives 0.746 / 0.404 / 0.170 / 0.442, which
-    differs from its stated coefficients by about the same margin as the
-    full-precision values here. The ranking is asserted exactly; the
-    coefficients are allowed 0.01, which is the size of the example's
-    own rounding error rather than a slack tolerance hiding a defect.
-    """
+    """The standard car-selection illustration: 4 alternatives, 4 criteria,
+    three benefit and one cost, weights 0.1 / 0.4 / 0.3 / 0.2."""
     matrix = np.array([
         [7.0, 9.0, 9.0, 8.0],   # Civic
         [8.0, 7.0, 8.0, 7.0],   # Saturn
@@ -362,15 +212,8 @@ def _check_crisp_car_example():
 
 
 def _check_fuzzy_hiring_example():
-    """
-    The standard fuzzy hiring illustration: 4 candidates, 3 criteria
-    (two benefit, one cost), rated as TFNs and weighted with TFNs.
-
-    This is the strongest single check in the module. It exercises TFN
-    weights, the piecewise normalisation, the computed FPIS/FNIS and the
-    vertex distance together, against published intermediate tables as
-    well as the final answer.
-    """
+    """The standard fuzzy hiring illustration: 4 candidates, 3 criteria (two
+    benefit, one cost), rated as TFNs and weighted with TFNs."""
     matrix = np.array([
         [[3, 5.667, 9], [5, 8.333, 9], [5, 7, 9]],          # C1
         [[5, 7, 9], [3, 7, 9], [3, 5, 7]],                  # C2

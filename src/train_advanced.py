@@ -1,51 +1,4 @@
-"""
-train_advanced.py
------------------
-Fine-tunes DistilBERT on the Human-vs-AI task (0 = human, 1 = AI).
-
-Why a transformer at all
-------------------------
-The baseline in train.py is TF-IDF + Logistic Regression: it counts
-which words and word-pairs appear, and weights them. It cannot see word
-order, and a word means the same thing to it in every context.
-
-DistilBERT is a pretrained transformer — a distilled, 6-layer version of
-BERT with roughly 66M parameters. Two things make it categorically
-different here:
-
-  * Self-attention: each token's representation is built from the whole
-    surrounding sentence, so "as an AI" is read as a phrase in context
-    rather than as three independent unigrams.
-  * Transfer learning: the model arrives already knowing English from
-    large-scale pretraining. Fine-tuning only adapts that knowledge to
-    this task, which is why ~4,700 training rows are enough — training a
-    network of this size from scratch on that data would not work.
-
-Training setup, and why
------------------------
-  3 epochs          — enough to converge on a small dataset without
-                      memorising it; more tends to overfit 4.7k rows.
-  lr = 2e-5         — the standard fine-tuning rate for BERT-family
-                      models. Higher rates wash out the pretrained
-                      weights, which is the thing of value here.
-  batch size 16     — fits comfortably in unified memory on MPS.
-  seed = 42         — matches the random_state used throughout
-                      data_prep.py, so runs are reproducible.
-
-The existing data/train.csv and data/test.csv splits are used unchanged.
-Re-splitting would make the resulting scores incomparable with the
-baseline, and comparability is the entire point of benchmark.py.
-
-Note on explainability
-----------------------
-train.py can print its most predictive words directly, by reading the
-logistic regression's coefficients (print_top_words_per_class). There is
-no equivalent here: "importance" is distributed across 66M parameters
-and 6 layers of attention, and no single weight corresponds to a word.
-That absence is precisely why this project uses LIME — a model-agnostic
-explainer that probes the model from the outside instead of reading its
-insides.
-"""
+"""Fine-tunes DistilBERT on the Human-vs-AI task (0 = human, 1 = AI)."""
 
 import numpy as np
 import pandas as pd
@@ -68,11 +21,8 @@ SEED = 42
 
 
 class TextDataset(torch.utils.data.Dataset):
-    """
-    Wraps pre-tokenised encodings plus labels in the item-dict format
-    Trainer expects. Tokenising up front (rather than per batch) is fine
-    at this dataset size and keeps the training loop simple.
-    """
+    """Wraps pre-tokenised encodings plus labels in the item-dict format
+    Trainer expects."""
 
     def __init__(self, encodings, labels):
         self.encodings = encodings
@@ -133,10 +83,7 @@ def main():
     tokenizer.save_pretrained(DISTILBERT_DIR)
     print(f"\nModel saved to {DISTILBERT_DIR}")
 
-    # Evaluate through the same wrapper the demo and LIME will use, so
-    # the reported score reflects the exact inference path used later
-    # (batching, truncation and softmax included) rather than a
-    # separate evaluation code path.
+    # Evaluate through the same wrapper the demo and LIME will use.
     print("\nEvaluating...")
     pipeline = TransformerPipeline(DISTILBERT_DIR)
     predictions = pipeline.predict(test_df["text"].tolist())

@@ -1,39 +1,39 @@
 {
   "LogisticRegression": {
     "faithfulness": {
-      "mean_drop": 0.23212634149548533,
-      "min_drop": 0.16182534513250002,
+      "mean_drop": 0.1510953693156557,
+      "min_drop": 0.10657960214681694,
       "n_texts": 8,
-      "median_sharpness": 0.11998835000265255,
-      "mean_confidence": 0.693301149786384,
-      "confidence_sharpness_r": -0.23762255731836476
+      "median_sharpness": 0.05950039112337828,
+      "mean_confidence": 0.7396551856218485,
+      "confidence_sharpness_r": 0.10933240608337688
     },
     "stability": {
-      "mean_weight_correlation": 0.9972368832837883,
-      "min_weight_correlation": 0.9937529843252304,
-      "mean_word_overlap": 0.9166666666666666,
+      "mean_weight_correlation": 0.9502188897405217,
+      "min_weight_correlation": 0.7485204201413884,
+      "mean_word_overlap": 0.9666666666666668,
       "n_seeds": 3,
       "n_texts": 4
     },
     "register": {
-      "positive": 3,
-      "checked": 4,
-      "rate": 0.75
+      "positive": 4,
+      "checked": 5,
+      "rate": 0.8
     }
   },
   "LinearSVM": {
     "faithfulness": {
-      "mean_drop": 0.47542693443862677,
-      "min_drop": 0.18626437411763908,
+      "mean_drop": 0.19431429574450815,
+      "min_drop": 0.013642491160958059,
       "n_texts": 8,
-      "median_sharpness": 0.2300850825811605,
-      "mean_confidence": 0.9121054255944205,
-      "confidence_sharpness_r": -0.21981107274693945
+      "median_sharpness": 0.11139536033534098,
+      "mean_confidence": 0.979319296419853,
+      "confidence_sharpness_r": -0.4364344115111825
     },
     "stability": {
-      "mean_weight_correlation": 0.993335749429919,
-      "min_weight_correlation": 0.9836097265393535,
-      "mean_word_overlap": 0.8250000000000001,
+      "mean_weight_correlation": 0.9319080119632774,
+      "min_weight_correlation": 0.5630800194783564,
+      "mean_word_overlap": 0.775,
       "n_seeds": 3,
       "n_texts": 4
     },
@@ -45,46 +45,68 @@
   },
   "XGBoost": {
     "faithfulness": {
-      "mean_drop": 0.2508186250925064,
-      "min_drop": 0.012704849243164062,
+      "mean_drop": 0.19893129914999008,
+      "min_drop": 0.00810694694519043,
       "n_texts": 8,
-      "median_sharpness": 0.13250492902651445,
-      "mean_confidence": 0.986770510673523,
-      "confidence_sharpness_r": 0.4014499280966927
+      "median_sharpness": 0.18626822591209904,
+      "mean_confidence": 0.9892833530902863,
+      "confidence_sharpness_r": 0.4894684668115626
     },
     "stability": {
-      "mean_weight_correlation": 0.9245765812584333,
-      "min_weight_correlation": 0.6619308787328946,
-      "mean_word_overlap": 0.8500000000000001,
+      "mean_weight_correlation": 0.8158221542174369,
+      "min_weight_correlation": 0.4645564855904953,
+      "mean_word_overlap": 0.7833333333333333,
       "n_seeds": 3,
       "n_texts": 4
     },
     "register": {
-      "positive": 3,
-      "checked": 3,
+      "positive": 4,
+      "checked": 4,
+      "rate": 1.0
+    }
+  },
+  "LogisticRegression-Content": {
+    "faithfulness": {
+      "mean_drop": 0.13456849367788454,
+      "min_drop": 0.07066912567842376,
+      "n_texts": 8,
+      "median_sharpness": 0.06464107163446142,
+      "mean_confidence": 0.6537003274214145,
+      "confidence_sharpness_r": -0.09827178834678713
+    },
+    "stability": {
+      "mean_weight_correlation": 0.9969836640399837,
+      "min_weight_correlation": 0.9927323407127318,
+      "mean_word_overlap": 0.9583333333333334,
+      "n_seeds": 3,
+      "n_texts": 4
+    },
+    "register": {
+      "positive": 2,
+      "checked": 2,
       "rate": 1.0
     }
   },
   "DistilBERT": {
     "faithfulness": {
-      "mean_drop": 0.1735573154874146,
-      "min_drop": 0.00030410289764404297,
+      "mean_drop": 0.13324237504275516,
+      "min_drop": 0.0003077983856201172,
       "n_texts": 8,
-      "median_sharpness": 0.23887605950468832,
-      "mean_confidence": 0.9987941533327103,
-      "confidence_sharpness_r": -0.05165947154107511
+      "median_sharpness": 0.24521578826939905,
+      "mean_confidence": 0.9988593459129333,
+      "confidence_sharpness_r": -0.1727361348844773
     },
     "stability": {
-      "mean_weight_correlation": 0.5572221218032588,
-      "min_weight_correlation": -0.3600993085699352,
-      "mean_word_overlap": 0.65,
+      "mean_weight_correlation": 0.5441514782361729,
+      "min_weight_correlation": -0.3061275550512396,
+      "mean_word_overlap": 0.5583333333333332,
       "n_seeds": 3,
       "n_texts": 4
     },
     "register": {
-      "positive": 3,
-      "checked": 4,
-      "rate": 0.75
+      "positive": 2,
+      "checked": 3,
+      "rate": 0.6666666666666666
     }
   }
 }

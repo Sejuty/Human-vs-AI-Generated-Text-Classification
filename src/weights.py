@@ -1,39 +1,4 @@
-"""
-weights.py
-----------
-Criterion importance, recorded as a linguistic judgement.
-
-TOPSIS does not derive weights. They are an input, supplied by whoever is
-making the decision, and the method simply applies them (Hwang & Yoon,
-1981). That makes the weighting the one genuinely subjective step in the
-procedure, so it is set down here explicitly — as words, with reasoning —
-rather than appearing as unexplained decimals somewhere in the ranking
-code.
-
-Each criterion is rated on a five-level importance scale whose levels are
-triangular fuzzy numbers, the same representation used for the ratings
-themselves. Both weight sets then derive from that single judgement:
-
-  * fuzzy TOPSIS multiplies by the TFNs directly, componentwise;
-  * crisp TOPSIS uses their centroids (l+m+u)/3, normalised to sum to 1.
-
-Deriving both from one source means the two cannot drift apart if the
-judgement is revised.
-
-How much this actually matters
-------------------------------
-Less than one might expect, and select_model.py demonstrates it rather
-than asserting it: the ranking this project produces is unchanged under
-these weights, under uniform weights, and under other plausible
-assignments. Only second and third place exchange. Showing that the
-conclusion survives the weighting is a better answer to "why these
-numbers" than any argument for one particular set.
-
-Reference
----------
-Hwang, C.-L., & Yoon, K. (1981). Multiple Attribute Decision Making:
-Methods and Applications. Springer-Verlag.
-"""
+"""Criterion importance, recorded as a linguistic judgement."""
 
 import numpy as np
 
@@ -70,28 +35,23 @@ IMPORTANCE = {
         "in a system built to explain itself, waiting for the explanation "
         "costs the user as much as waiting for the prediction",
     ),
+    "content_share": (
+        "high",
+        "an explanation made of function words is produced as quickly as any "
+        "other and tells the reader nothing, so speed alone cannot stand in "
+        "for explanation quality",
+    ),
 }
 
 
 def fuzzy_weights(criteria):
-    """
-    TFN weights for the given criteria, as an (n, 3) array.
-
-    This is what fuzzy TOPSIS multiplies by at its weighting step.
-    """
+    """TFN weights for the given criteria, as an (n, 3) array."""
     return np.array([IMPORTANCE_SCALE[IMPORTANCE[c][0]] for c in criteria],
                     dtype=float)
 
 
 def crisp_weights(criteria):
-    """
-    Scalar weights for the given criteria, summing to 1.
-
-    Each is the centroid (l+m+u)/3 of the corresponding TFN, normalised
-    across the criteria. Centroid defuzzification is used because it
-    accounts for the whole triangle rather than only its peak, so a
-    lopsided rating is not silently reduced to its most-likely value.
-    """
+    """Scalar weights for the given criteria, summing to 1."""
     centroids = fuzzy_weights(criteria).mean(axis=1)
     return centroids / centroids.sum()
 

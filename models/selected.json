@@ -1,5 +1,5 @@
 {
-  "selected": "XGBoost",
+  "selected": "LinearSVM",
   "selected_by": "TOPSIS closeness coefficient",
   "selection_note": "TOPSIS is used to make the final choice because it works from the raw measurements and can separate models the linguistic scale rates identically.",
   "importance": {
@@ -7,44 +7,41 @@
     "f1": "high",
     "latency_ms": "medium",
     "size_mb": "low",
-    "lime_seconds": "medium"
+    "lime_seconds": "medium",
+    "content_share": "high"
   },
   "crisp_weights": {
-    "accuracy": 0.29411764705882354,
-    "f1": 0.24705882352941175,
-    "latency_ms": 0.1764705882352941,
-    "size_mb": 0.10588235294117646,
-    "lime_seconds": 0.1764705882352941
+    "accuracy": 0.2358490566037736,
+    "f1": 0.1981132075471698,
+    "latency_ms": 0.14150943396226415,
+    "size_mb": 0.08490566037735849,
+    "lime_seconds": 0.14150943396226415,
+    "content_share": 0.1981132075471698
   },
   "topsis_ranking": [
-    "XGBoost",
     "LinearSVM",
     "LogisticRegression",
+    "XGBoost",
     "DistilBERT"
   ],
   "fuzzy_ranking": [
+    "LinearSVM",
     "LogisticRegression",
     "XGBoost",
-    "LinearSVM",
     "DistilBERT"
   ],
   "topsis_closeness": {
-    "LogisticRegression": 0.9513671788999798,
-    "LinearSVM": 0.9521258656367347,
-    "XGBoost": 0.9684569297068165,
-    "DistilBERT": 0.0486328211000202
+    "LogisticRegression": 0.8112982045980803,
+    "LinearSVM": 0.8493394425143459,
+    "XGBoost": 0.71452839377634,
+    "DistilBERT": 0.2839517289874743
   },
   "fuzzy_closeness": {
-    "LogisticRegression": 0.7133878883162937,
-    "LinearSVM": 0.6368162151228146,
-    "XGBoost": 0.7133878883162937,
-    "DistilBERT": 0.2866121116837064
+    "LogisticRegression": 0.5499032787365753,
+    "LinearSVM": 0.9033973819531764,
+    "XGBoost": 0.5213764328560515,
+    "DistilBERT": 0.4500967212634247
   },
-  "fuzzy_ties": [
-    [
-      "LogisticRegression",
-      "XGBoost"
-    ]
-  ],
-  "rankings_agree": false
+  "fuzzy_ties": [],
+  "rankings_agree": true
 }

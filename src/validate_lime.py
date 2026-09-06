@@ -1,53 +1,5 @@
-"""
-validate_lime.py
-----------------
-Checks that the LIME explanations this project relies on are actually
-describing the models, rather than merely looking plausible.
-
-An explanation is persuasive by construction: highlighted words in a
-sentence read as a reason whether or not the model used them. So a
-system built around an explainer needs evidence that its output
-corresponds to the model's behaviour. Three properties are measured, and
-a fourth is asserted.
-
-Faithfulness
-    The deletion test. Take the words LIME says support the predicted
-    class, remove them from the text, and re-classify. If those words
-    are what the model was using, the probability of the predicted class
-    should fall substantially. If it barely moves, the explanation is
-    pointing at the wrong thing — which is the failure mode that matters
-    and the one no amount of inspection would reveal.
-
-Stability
-    LIME approximates a model locally by sampling perturbations, so its
-    output is stochastic. explain.py fixes the seed, which makes results
-    reproducible but says nothing about how much they would move
-    otherwise. Re-running each explanation under several seeds and
-    correlating the word weights measures the underlying variance. A low
-    correlation would mean the explanation is an artefact of sampling.
-
-Sharpness
-    The magnitude of the largest weight. This is not a quality measure in
-    itself, but it interacts with confidence in a way worth quantifying:
-    when a model is saturated at 99.9%, deleting any single word barely
-    changes the probability, so the local linear model LIME fits has
-    almost no gradient to report and the explanation flattens. A
-    confident model and an informative local explanation are in tension.
-
-Register sanity
-    On in-distribution text, phrasing characteristic of assistant
-    writing should carry positive (AI-ward) weight. This is a weaker
-    check than the three above — it encodes an expectation about the
-    data rather than a property of the method — so it is reported and
-    asserted only where the model actually predicts the AI class.
-
-Writes results/lime_validation.json.
-
-Reference
----------
-Ribeiro, M. T., Singh, S., & Guestrin, C. (2016). "Why Should I Trust
-You?": Explaining the Predictions of Any Classifier. KDD '16, 1135-1144.
-"""
+"""Checks that the LIME explanations this project relies on are actually
+describing the models, rather than merely looking plausible."""
 
 import json
 import os
@@ -62,8 +14,8 @@ import pandas as pd
 from explain import NUM_SAMPLES, explain_text
 from metrics import format_table
 
-from paths import (BASELINE_MODEL, LIME_VALIDATION, SVM_MODEL, TEST_CSV,
-                   XGBOOST_MODEL, ensure_dirs)
+from paths import (BASELINE_MODEL, CONTENT_MODEL, LIME_VALIDATION, SVM_MODEL,
+                   TEST_CSV, XGBOOST_MODEL, ensure_dirs)
 
 N_FAITHFULNESS = 8   # texts used for the deletion test
 N_STABILITY = 4      # texts re-explained under several seeds
@@ -71,8 +23,6 @@ SEEDS = (0, 1, 2)    # seeds compared for stability
 TOP_K = 5            # words deleted in the faithfulness test
 
 # Minimum mean probability drop for the deletion test to count as passing.
-# Set low deliberately: the claim being defended is that the explanation
-# is connected to the model at all, not that it is complete.
 FAITHFULNESS_FLOOR = 0.05
 
 # Phrasing characteristic of assistant writing, for the register check.
@@ -88,12 +38,7 @@ def delete_words(text, words):
 
 
 def supporting_words(weights, predicted, k=TOP_K):
-    """
-    The k words most supporting the predicted class.
-
-    Weights are expressed relative to the AI class, so for a human
-    prediction the supporting words are the negatively weighted ones.
-    """
+    """The k words most supporting the predicted class."""
     signed = [(w, s if predicted == 1 else -s) for w, s in weights]
     return [w for w, s in sorted(signed, key=lambda ws: -ws[1])[:k] if s > 0]
 
@@ -132,12 +77,7 @@ def faithfulness(pipeline, texts, num_samples=NUM_SAMPLES):
 
 
 def stability(pipeline, texts, seeds=SEEDS, num_samples=NUM_SAMPLES):
-    """
-    Mean pairwise correlation of word weights across perturbation seeds.
-
-    Compares only words that appear in both explanations, since LIME
-    returns the top `num_features` and its selection can shift slightly.
-    """
+    """Mean pairwise correlation of word weights across perturbation seeds."""
     correlations, overlaps = [], []
     for text in texts:
         runs = [dict(explain_text(text, pipeline=pipeline, num_features=10,
@@ -163,13 +103,7 @@ def stability(pipeline, texts, seeds=SEEDS, num_samples=NUM_SAMPLES):
 
 
 def register_check(pipeline, texts, num_samples=NUM_SAMPLES):
-    """
-    Do AI-register phrases carry AI-ward weight where they appear?
-
-    Only counted on texts the model predicts as AI: on a text it reads as
-    human, the words supporting that reading are the informative ones and
-    a register phrase carrying negative weight is not a contradiction.
-    """
+    """Do AI-register phrases carry AI-ward weight where they appear?"""
     hits, total = 0, 0
     for text in texts:
         if int(pipeline.predict([text])[0]) != 1:
@@ -196,6 +130,7 @@ def load_models():
         ("LogisticRegression", lambda: load_model(BASELINE_MODEL)),
         ("LinearSVM", lambda: load_model(SVM_MODEL)),
         ("XGBoost", lambda: load_model(XGBOOST_MODEL)),
+        ("LogisticRegression-Content", lambda: load_model(CONTENT_MODEL)),
         ("DistilBERT", load_advanced_model),
     ]
 

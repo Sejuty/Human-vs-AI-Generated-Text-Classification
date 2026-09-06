@@ -1,56 +1,26 @@
-"""
-train_candidates.py
--------------------
-Trains the two additional classical candidates — Linear SVM and
-XGBoost — so the multi-criteria ranking in select_model.py has a
-spread of alternatives rather than just "cheap linear model vs.
-expensive transformer".
-
-Both reuse the TF-IDF front end from train.py (word 1-2 grams, top 5000
-features) and differ only in the classifier, which keeps the comparison
-honest: any difference in score comes from the learning algorithm, not
-from different text features.
-
-Why the SVM is wrapped in CalibratedClassifierCV
-------------------------------------------------
-LinearSVC has no predict_proba. It only exposes decision_function, a
-signed distance from the separating hyperplane, which is unbounded and
-not a probability. That is a problem here for two reasons: LIME requires
-a classifier_fn returning per-class probabilities, and demo.py prints a
-confidence percentage.
-
-CalibratedClassifierCV fits the SVM inside a cross-validation loop and
-then fits a calibration curve (Platt scaling by default) mapping those
-distances onto probabilities. The result exposes predict_proba and slots
-into the same interface as every other model in the project.
-"""
+"""Trains the two additional classical candidates."""
 
 import joblib
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 from xgboost import XGBClassifier
 
 from metrics import confusion, evaluate
+from train import build_vectorizer
 
-from paths import SVM_MODEL, TEST_CSV, TRAIN_CSV, XGBOOST_MODEL, ensure_dirs
+from paths import (CONTENT_MODEL, SVM_MODEL, TEST_CSV, TRAIN_CSV,
+                   XGBOOST_MODEL, ensure_dirs)
 
 SEED = 42
-
-
-def build_vectorizer():
-    """Identical settings to train.py's pipeline, so features match."""
-    return TfidfVectorizer(ngram_range=(1, 2), max_features=5000)
 
 
 def build_svm():
     return Pipeline([
         ("tfidf", build_vectorizer()),
-        # cv=5: five folds of calibration data. dual="auto" silences the
-        # solver-choice warning on sklearn >= 1.3 for this n_samples /
-        # n_features ratio.
+        # cv=5: five folds of calibration data.
         ("clf", CalibratedClassifierCV(
             LinearSVC(dual="auto", random_state=SEED), cv=5
         )),
@@ -60,9 +30,8 @@ def build_svm():
 def build_xgboost():
     return Pipeline([
         ("tfidf", build_vectorizer()),
-        # Modest depth and a few hundred trees: TF-IDF features are
-        # sparse and high-dimensional, so deep trees overfit quickly on
-        # 4.7k rows.
+        # Modest depth and a few hundred trees: TF-IDF features are sparse and
+        # high-dimensional, so deep trees overfit quickly on 4.7k rows.
         ("clf", XGBClassifier(
             n_estimators=300,
             max_depth=6,
@@ -73,6 +42,15 @@ def build_xgboost():
             n_jobs=-1,
             eval_metric="logloss",
         )),
+    ])
+
+
+def build_content():
+    """Function words are excluded, so LIME can only attribute to content
+    words. Trades accuracy for explanations a reader can act on."""
+    return Pipeline([
+        ("tfidf", build_vectorizer(stop_words="english")),
+        ("clf", LogisticRegression(max_iter=1000)),
     ])
 
 
@@ -109,6 +87,8 @@ def main():
                      train_df, test_df, SVM_MODEL)
     train_and_report("XGBoost", build_xgboost(),
                      train_df, test_df, XGBOOST_MODEL)
+    train_and_report("LogisticRegression-Content", build_content(),
+                     train_df, test_df, CONTENT_MODEL)
 
 
 if __name__ == "__main__":

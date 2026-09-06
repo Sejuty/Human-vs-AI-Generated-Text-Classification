@@ -1,14 +1,4 @@
-"""
-train.py
---------
-Trains the Human-vs-AI text classifier (label 0 = human, label 1 = AI).
-
-Pipeline: TF-IDF vectorizer -> Logistic Regression classifier, wrapped
-in a single sklearn Pipeline so explain.py/demo.py can call
-`pipeline.predict_proba(raw_text)` directly — LIME needs a function
-that takes raw strings in and returns class probabilities out, without
-us having to separately vectorize text ourselves.
-"""
+"""Trains the Human-vs-AI text classifier (label 0 = human, label 1 = AI)."""
 
 import numpy as np
 import pandas as pd
@@ -21,34 +11,29 @@ from sklearn.pipeline import Pipeline
 from paths import BASELINE_MODEL, TEST_CSV, TRAIN_CSV, ensure_dirs
 
 
-def build_pipeline():
-    """
-    TfidfVectorizer(ngram_range=(1,2)): use both single words and pairs
-    of consecutive words as features, since AI-generated text often has
-    telltale phrasing (e.g. "as an ai") that shows up in bigrams.
-    max_features=5000: caps the vocabulary size, keeping training fast
-    and avoiding overfitting to rare words.
+def build_vectorizer(stop_words=None):
+    """Shared TF-IDF front end. stop_words="english" yields the interpretable
+    candidate, whose explanations cannot fall back on function words."""
+    return TfidfVectorizer(
+        ngram_range=(1, 2),
+        max_features=20000,
+        sublinear_tf=True,
+        stop_words=stop_words,
+    )
 
-    LogisticRegression does binary classification here (human vs AI)
-    with no extra config needed.
-    """
+
+def build_pipeline():
     return Pipeline(
         [
-            ("tfidf", TfidfVectorizer(ngram_range=(1, 2), max_features=5000)),
+            ("tfidf", build_vectorizer()),
             ("clf", LogisticRegression(max_iter=1000)),
         ]
     )
 
 
 def print_top_words_per_class(pipeline, top_n=15):
-    """
-    Print the top N words most associated with each class, based on
-    the logistic regression coefficients. For binary classification,
-    sklearn stores a single coefficient row: positive weight = pushes
-    toward class 1 (AI), negative weight = pushes toward class 0
-    (human). This is a quick sanity check that the model learned
-    something sensible.
-    """
+    """Print the top N words most associated with each class, based on the
+    logistic regression coefficients."""
     vectorizer = pipeline.named_steps["tfidf"]
     clf = pipeline.named_steps["clf"]
     feature_names = np.array(vectorizer.get_feature_names_out())

@@ -1,42 +1,5 @@
-"""
-select_model.py
----------------
-Ranks the benchmarked models with TOPSIS and fuzzy TOPSIS and records
-which one to deploy.
-
-Reads results/decision_matrix.json, written by benchmark.py, so the
-ranking can be re-run under different weights without repeating the
-measurements.
-
-The two methods answer slightly different questions and are both
-reported. Crisp TOPSIS works from the raw measurements and can resolve
-arbitrarily small differences between models. Fuzzy TOPSIS works from
-linguistic ratings, which deliberately discard resolution in exchange
-for saying something robust: two models in the same category are being
-called equivalent on that criterion, and that is a claim worth being
-able to make.
-
-Where they agree the conclusion is well supported. Where they differ —
-in particular where the fuzzy method ties two models the crisp method
-separates — the difference is itself informative, and is reported rather
-than resolved silently.
-
-What this script decides, and what it does not
-----------------------------------------------
-It selects one model to deploy and explain. It does not build a weighted
-ensemble: closeness coefficients rank alternatives, they are not
-calibrated probabilities, and using them as vote weights would mean
-treating a model's cheapness as a reason to trust its verdict.
-
-Direction handling
-------------------
-Crisp TOPSIS receives the raw values, where latency, size and
-explanation time are cost criteria and invert at the ideal-solution
-step. Fuzzy TOPSIS receives linguistic ratings that are already phrased
-as goodness — a fast model rates "outstanding" — so every criterion
-reaches it as a benefit criterion. The direction is applied exactly once
-in each path.
-"""
+"""Ranks the benchmarked models with TOPSIS and fuzzy TOPSIS and records which
+one to deploy."""
 
 import json
 import os
@@ -53,7 +16,7 @@ from topsis import BENEFIT, find_ties, fuzzy_topsis, sensitivity_analysis, topsi
 
 from paths import DECISION_MATRIX, FIGURES_DIR, SELECTED_JSON, ensure_dirs
 
-QUALITY_CRITERIA = ["accuracy", "f1"]
+QUALITY_CRITERIA = ["accuracy", "f1", "content_share"]
 
 
 def load_matrix(path=DECISION_MATRIX):
@@ -63,7 +26,10 @@ def load_matrix(path=DECISION_MATRIX):
 
     criteria = payload["criteria"]
     directions = payload["directions"]
-    names = list(payload["models"])
+    names = [n for n, r in payload["models"].items() if not r.get("ablation")]
+    ablations = [n for n, r in payload["models"].items() if r.get("ablation")]
+    if ablations:
+        print(f"Excluded from the ranking as ablations: {', '.join(ablations)}")
 
     crisp = np.array([[payload["models"][n]["crisp"][c] for c in criteria]
                       for n in names], dtype=float)
@@ -139,21 +105,26 @@ def plot_sensitivity(sweep, names, path):
 
 
 def weight_invariance(crisp, fuzzy, directions, fuzzy_directions, criteria, names):
-    """
-    Re-rank under several plausible weightings.
+    """Re-rank under several plausible weightings."""
+    # Set by the decision maker, in CRITERIA order. TOPSIS does not derive
+    # weights; supplying them is the one subjective step in the procedure.
+    QUALITY_LED = {
+        "accuracy": 0.28,
+        "f1": 0.20,
+        "latency_ms": 0.12,
+        "size_mb": 0.08,
+        "lime_seconds": 0.12,
+        "content_share": 0.20,
+    }
+    quality_led = np.array([QUALITY_LED[c] for c in criteria])
 
-    The standard objection to any multi-criteria result is that the
-    weights were chosen to produce it. Rather than argue for one set,
-    show what happens under others.
-    """
     schemes = {
         "uniform": (np.full(len(criteria), 1.0),
                     np.full((len(criteria), 3), 1.0)),
         "linguistic": (weighting.crisp_weights(criteria),
                        weighting.fuzzy_weights(criteria)),
-        "quality-led": (np.array([0.35, 0.25, 0.15, 0.10, 0.15]),
-                        np.repeat(np.array([0.35, 0.25, 0.15, 0.10, 0.15])[:, None],
-                                  3, axis=1)),
+        "quality-led": (quality_led,
+                        np.repeat(quality_led[:, None], 3, axis=1)),
     }
 
     rows = []
@@ -214,9 +185,7 @@ def main():
     print(format_table([[n] + row for n, row in zip(names, categories)],
                        ["model"] + list(criteria)))
 
-    # There is one set of measurements, so one rater: the aggregation
-    # step that would combine several decision-makers' ratings is the
-    # identity here and is stated rather than skipped.
+    # There is one set of measurements.
     print("\nAggregation across raters: identity (a single set of measurements).")
 
     print_fuzzy_matrix("Fuzzy decision matrix, TFN (l, m, u):",

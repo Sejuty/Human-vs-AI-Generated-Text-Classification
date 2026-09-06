@@ -1,63 +1,5 @@
-"""
-benchmark.py
-------------
-Measures every criterion for every candidate model and writes the
-decision matrix that select_model.py ranks.
-
-This is the only place measurements are taken. Keeping them in one file
-means the ranking can be re-run with different weights without re-timing
-anything, and guarantees all four models are measured under identical
-conditions — which matters, because timings compared across different
-runs or machines would be meaningless.
-
-The five criteria
------------------
-Two are quality criteria, to be maximised:
-
-    accuracy   overall correctness on the held-out test set
-    f1         harmonic mean of precision and recall for the AI class
-
-Three are cost criteria, to be minimised:
-
-    latency    median milliseconds to classify one piece of text
-    size       bytes the trained model occupies on disk
-    lime_time  seconds to produce one LIME explanation
-
-Why cost criteria belong in the decision at all
------------------------------------------------
-Ranking models on accuracy variants alone would be a fake
-multi-criteria problem. The test set is exactly balanced (300 human /
-300 AI), so accuracy is *identically* the mean of sensitivity and
-specificity, and F1 tracks the same quantities. Four such criteria are
-one dimension wearing four hats, and TOPSIS over them would just
-reproduce the accuracy ordering.
-
-Latency, size and explanation time genuinely conflict with accuracy: the
-transformer is expected to be the most accurate and the slowest, largest
-and most expensive to explain, by orders of magnitude. That conflict is
-what gives a multi-criteria method something to decide.
-
-`lime_time` is the criterion that ties the two halves of this project
-together: in a system whose purpose is explainable classification, the
-cost of producing an explanation is a real property of the model, not an
-implementation detail.
-
-Why each measurement is taken the way it is
--------------------------------------------
-Latency is measured one text at a time, not in batches. Batched
-inference is much faster per item, but demo.py and explain.py classify
-single inputs, so single-text latency is what a user actually
-experiences.
-
-Every timing is repeated and reported as (min, median, max) rather than
-a single number, because timings vary between runs, and quality metrics
-carry bootstrap confidence intervals for the same reason: a score from
-600 test rows is an estimate, not an exact value.
-
-Each measurement is also recorded as a linguistic category — the input
-fuzzy TOPSIS operates on — by rating it against the threshold bands in
-fuzzify.py.
-"""
+"""Measures every criterion for every candidate model and writes the decision
+matrix that select_model.py ranks."""
 
 import json
 import os
@@ -70,16 +12,24 @@ import pandas as pd
 from fuzzify import classify, fuzzify
 from metrics import bootstrap_ci, confusion, evaluate, format_table
 
-from paths import (BASELINE_MODEL, DECISION_MATRIX, DISTILBERT_DIR, SVM_MODEL,
-                   TEST_CSV, XGBOOST_MODEL, ensure_dirs)
+from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+
+from paths import (BASELINE_MODEL, CONTENT_MODEL, DECISION_MATRIX,
+                   DISTILBERT_DIR, SVM_MODEL, TEST_CSV, XGBOOST_MODEL,
+                   ensure_dirs)
 
 # Criterion order is fixed here and relied on by select_model.py.
-CRITERIA = ["accuracy", "f1", "latency_ms", "size_mb", "lime_seconds"]
-DIRECTIONS = ["benefit", "benefit", "cost", "cost", "cost"]
+CRITERIA = ["accuracy", "f1", "latency_ms", "size_mb", "lime_seconds",
+            "content_share"]
+DIRECTIONS = ["benefit", "benefit", "cost", "cost", "cost", "benefit"]
+
+# Measured and reported, but excluded from the ranking: this model scores
+# ~100% on content_share by construction, having no stop-word features.
+ABLATIONS = {"LogisticRegression-Content"}
 
 LATENCY_TEXTS = 100      # texts per latency repeat
 LATENCY_REPEATS = 5      # repeats, to get a (min, median, max) spread
-LIME_TEXTS = 5           # explanations timed per model
+LIME_TEXTS = 10          # explanations per model, for timing and content share
 LIME_SAMPLES = 1000      # must match explain.NUM_SAMPLES to be representative
 
 
@@ -95,14 +45,7 @@ def dir_size_bytes(path):
 
 
 def measure_latency(pipeline, texts):
-    """
-    Median milliseconds for a single-text prediction, repeated.
-
-    Returns (min, median, max) across repeats. One warm-up pass is
-    discarded first: the first call to a transformer pays for lazy
-    kernel compilation and memory allocation on MPS, which would
-    otherwise dominate the measurement.
-    """
+    """Median milliseconds for a single-text prediction, repeated."""
     pipeline.predict([texts[0]])  # warm-up, discarded
 
     per_repeat = []
@@ -118,37 +61,33 @@ def measure_latency(pipeline, texts):
 
 
 def measure_lime(pipeline, texts):
-    """
-    Seconds to produce one LIME explanation, as (min, median, max).
-
-    Imported lazily so that a failure to build LIME explanations does not
-    prevent the quality metrics from being collected.
-    """
+    """Returns ((min, median, max) seconds per explanation, mean content
+    share)."""
     from explain import explain_text
 
-    times = []
+    times, shares = [], []
     for text in texts:
         start = time.perf_counter()
-        explain_text(text, pipeline=pipeline, num_samples=LIME_SAMPLES)
+        weights = explain_text(text, pipeline=pipeline, num_samples=LIME_SAMPLES)
         times.append(time.perf_counter() - start)
 
-    return (min(times), float(np.median(times)), max(times))
+        total = sum(abs(w) for _, w in weights)
+        content = sum(abs(w) for word, w in weights
+                      if word.lower() not in ENGLISH_STOP_WORDS)
+        shares.append(100.0 * content / total if total else 0.0)
+
+    return (min(times), float(np.median(times)), max(times)), float(np.mean(shares))
 
 
 def load_models():
-    """
-    Every candidate, as (name, pipeline, path_on_disk).
-
-    The transformer is imported inside the function so the classical
-    models can still be benchmarked on a machine without torch
-    installed.
-    """
+    """Every candidate, as (name, pipeline, path_on_disk)."""
     from advanced_model import load_advanced_model
 
     return [
         ("LogisticRegression", joblib.load(BASELINE_MODEL), BASELINE_MODEL),
         ("LinearSVM", joblib.load(SVM_MODEL), SVM_MODEL),
         ("XGBoost", joblib.load(XGBOOST_MODEL), XGBOOST_MODEL),
+        ("LogisticRegression-Content", joblib.load(CONTENT_MODEL), CONTENT_MODEL),
         ("DistilBERT", load_advanced_model(), DISTILBERT_DIR),
     ]
 
@@ -187,8 +126,9 @@ def main():
         print(f"  size        {size_mb:.2f} MB")
 
         print("  timing LIME explanations...")
-        lime_tfn = measure_lime(pipeline, lime_texts)
+        lime_tfn, content_share = measure_lime(pipeline, lime_texts)
         print(f"  lime        {lime_tfn[1]:.2f} s per explanation")
+        print(f"  content     {content_share:.1f}% of explanation weight")
 
         crisp = {
             "accuracy": scores["accuracy"],
@@ -196,12 +136,14 @@ def main():
             "latency_ms": latency_tfn[1],
             "size_mb": size_mb,
             "lime_seconds": lime_tfn[1],
+            "content_share": content_share,
         }
         categories = {c: classify(c, v) for c, v in crisp.items()}
         print("  rated       " + ", ".join(
             f"{c}={categories[c]}" for c in CRITERIA))
 
         records[name] = {
+            "ablation": name in ABLATIONS,
             "metrics": scores,
             "confusion": confusion(y_true, predictions).tolist(),
             "crisp": crisp,
@@ -211,9 +153,7 @@ def main():
                 c: {"category": categories[c], "tfn": list(fuzzify(c, crisp[c]))}
                 for c in CRITERIA
             },
-            # Measurement spread, reported alongside the results rather
-            # than fed into the ranking: bootstrap intervals for the
-            # quality metrics, observed (min, median, max) for timings.
+            # Measurement spread.
             "intervals": {
                 "accuracy": list(acc_tfn),
                 "f1": list(f1_tfn),

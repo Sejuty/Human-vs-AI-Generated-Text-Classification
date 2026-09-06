@@ -1,16 +1,5 @@
-"""
-paths.py
---------
-Every filesystem location the project uses, resolved from this file
-rather than from the working directory.
-
-The scripts read and write a lot of shared state — datasets, trained
-models, measurements, figures — and relative paths like "data/train.csv"
-only work when the interpreter happens to be started from the project
-root. Anchoring on __file__ instead means `python src/demo.py`,
-`python demo.py` from inside src/, and an import from a notebook
-elsewhere all resolve to the same files.
-"""
+"""Every filesystem location the project uses, resolved from this file rather
+than from the working directory."""
 
 from pathlib import Path
 
@@ -32,6 +21,7 @@ TEST_CSV = DATA_DIR / "test.csv"
 BASELINE_MODEL = MODELS_DIR / "classifier.joblib"
 SVM_MODEL = MODELS_DIR / "svm.joblib"
 XGBOOST_MODEL = MODELS_DIR / "xgboost.joblib"
+CONTENT_MODEL = MODELS_DIR / "content.joblib"
 DISTILBERT_DIR = MODELS_DIR / "distilbert"
 SELECTED_JSON = MODELS_DIR / "selected.json"
 
@@ -39,9 +29,7 @@ SELECTED_JSON = MODELS_DIR / "selected.json"
 DECISION_MATRIX = RESULTS_DIR / "decision_matrix.json"
 LIME_VALIDATION = RESULTS_DIR / "lime_validation.json"
 
-# Transient scratch space for the transformer trainer. Nothing here is
-# needed once training finishes; it exists because the training loop
-# insists on somewhere to write.
+# Transient scratch space for the transformer trainer.
 TRAINER_CACHE = ROOT / ".cache" / "trainer"
 
 

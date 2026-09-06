@@ -27,7 +27,22 @@ with a list of human answers and a list of ChatGPT answers.
 2. **Clean** — strip whitespace, drop empty and null rows.
 3. **Balance** — sample 1,500 rows per class, then shuffle. A balanced set makes
    accuracy directly interpretable and removes any majority-class prior.
-4. **Split** — 80/20 stratified, `random_state=42`.
+4. **Remove placeholders** — strip `URL_n` tokens (see below).
+5. **Split** — 80/20 stratified, `random_state=42`.
+
+**A label leak, found and removed.** HC3 replaced hyperlinks in human answers
+with placeholder tokens `URL_0`, `URL_1`, … . Reddit and StackExchange answers
+contain links; ChatGPT answers do not. The token therefore appears in **12.9% of
+human rows and 0.1% of AI rows** — 195 rows, 310 occurrences — and identifies a
+text as human with near-certainty for reasons unrelated to writing style. In an
+earlier revision `url_0` was the second-strongest human-ward coefficient in the
+baseline model.
+
+`data_prep.py` now strips `\bURL_\d+\b` from the splits before training, leaving
+non-matching text byte-identical and emptying no rows, so the class balance and
+the seeded split are unchanged. Removing it costs the baseline about half an
+accuracy point — the honest price of a number that was previously inflated by a
+preprocessing artifact. `data/dataset.csv` retains the raw text as an archive.
 
 | | rows |
 |---|---|
@@ -48,18 +63,35 @@ fair, but the absolute accuracies below should be read as optimistic.
 
 ## 2. Candidate models
 
-Four models, all trained and evaluated on the identical split.
+Four candidates and one ablation, all trained and evaluated on the identical
+split.
 
 | Model | Representation | Classifier |
 |---|---|---|
-| Logistic Regression | TF-IDF, 1–2 grams, 5,000 features | linear, `max_iter=1000` |
+| Logistic Regression | TF-IDF, 1–2 grams, 20,000 features, sublinear TF | linear, `max_iter=1000` |
 | Linear SVM | same TF-IDF | `LinearSVC` + `CalibratedClassifierCV(cv=5)` |
 | XGBoost | same TF-IDF | 300 trees, depth 6, learning rate 0.1 |
 | DistilBERT | learned word-piece embeddings | fine-tuned transformer |
+| *LogReg-Content* (ablation) | *same TF-IDF, `stop_words="english"`* | *linear, `max_iter=1000`* |
 
-The three classical models share an identical TF-IDF front end, so any
-difference between them arises from the learning algorithm rather than from
-different features.
+The classical models share an identical TF-IDF front end (`train.build_vectorizer`),
+so any difference between them arises from the learning algorithm rather than
+from different features.
+
+**Feature settings.** 20,000 features rather than 5,000: at the smaller budget,
+bigrams consumed roughly half the vocabulary and domain vocabulary was excluded
+outright — of the words in a sample passage about regression, *every* content
+term (`regression`, `variable`, `predictor`, `dependent`, `outcome`) was absent
+from the vocabulary, so the model could not use them and LIME could not
+attribute to them. `sublinear_tf=True` replaces raw term frequency with
+1 + log(tf), so a word repeated eight times in a passage no longer dominates on
+repetition alone.
+
+**The ablation.** `LogReg-Content` is the baseline with function words removed
+at the feature level. It is measured and reported but **excluded from the
+ranking**: it scores ~100% on the `content_share` criterion by construction, so
+ranking it would measure how it was built rather than how good it is. Its role
+is to price the tradeoff (§5.5).
 
 **The transformer.** DistilBERT (Sanh et al., 2019) is a distilled six-layer,
 ~66M-parameter model. Two properties separate it categorically from the
@@ -72,8 +104,8 @@ training rows suffice, where a network of this size trained from scratch on that
 data would not converge.
 
 Fine-tuning: 3 epochs, learning rate 2e-5, batch size 16, `seed=42`, maximum
-sequence length 256 tokens. Training took 10 min 04 s on an Apple M4 using the
-MPS backend, with training loss falling from approximately 0.5 to 0.0043.
+sequence length 256 tokens. Training took 6 min 51 s on an Apple M4 using the
+MPS backend, with training loss falling from approximately 0.42 to 0.0039.
 
 **A note on the SVM.** `LinearSVC` exposes only `decision_function`, an unbounded
 signed distance from the separating hyperplane, not probabilities. LIME requires
@@ -89,10 +121,11 @@ All figures on the 600-row held-out test set.
 
 | Model | Accuracy | F1 | Sensitivity | Specificity |
 |---|---|---|---|---|
-| Logistic Regression | 0.9117 | 0.9112 | 0.9067 | 0.9167 |
-| Linear SVM | 0.9267 | 0.9272 | 0.9333 | 0.9200 |
-| XGBoost | 0.9367 | 0.9354 | 0.9167 | 0.9567 |
-| **DistilBERT** | **0.9783** | **0.9788** | **1.0000** | 0.9567 |
+| Logistic Regression | 0.9267 | 0.9254 | 0.9100 | 0.9433 |
+| Linear SVM | 0.9517 | 0.9521 | 0.9600 | 0.9433 |
+| XGBoost | 0.9267 | 0.9236 | 0.8867 | 0.9667 |
+| **DistilBERT** | **0.9817** | **0.9820** | **1.0000** | 0.9633 |
+| *LogReg-Content* (ablation) | *0.8867* | *0.8863* | *0.8833* | *0.8900* |
 
 Sensitivity is recall of the AI class; specificity is recall of the human class.
 
@@ -102,22 +135,28 @@ Sensitivity is recall of the AI class; specificity is recall of the human class.
 
 | Model | Accuracy 95% CI |
 |---|---|
-| Logistic Regression | [0.8883, 0.9350] |
-| Linear SVM | [0.9050, 0.9483] |
-| XGBoost | [0.9183, 0.9567] |
-| DistilBERT | [0.9667, 0.9900] |
+| Logistic Regression | [0.9050, 0.9467] |
+| Linear SVM | [0.9350, 0.9683] |
+| XGBoost | [0.9050, 0.9467] |
+| DistilBERT | [0.9700, 0.9917] |
+| *LogReg-Content* | *[0.8616, 0.9100]* |
 
-The intervals decide which gaps are real. Logistic Regression, Linear SVM and
-XGBoost overlap substantially with one another, so their ordering is not
-meaningful on a test set this size. DistilBERT's interval is disjoint from all
-three, so its advantage is genuine rather than sampling noise.
+The intervals decide which gaps are real. Logistic Regression and XGBoost have
+identical accuracy and overlapping intervals, and Linear SVM overlaps both, so
+the ordering among the three is not meaningful on a test set this size.
+DistilBERT's interval is disjoint from all of them, so its advantage is genuine
+rather than sampling noise.
 
 ![Confusion matrices](figures/confusion_matrices.png)
 
 DistilBERT's error profile is asymmetric and worth noting: it missed **none** of
-the 300 AI texts, and all 13 of its errors were human writing filed as AI. In a
+the 300 AI texts, and all 11 of its errors were human writing filed as AI. In a
 plagiarism-detection setting that is the more damaging direction — a false
 accusation — even though it produces the best headline accuracy.
+
+The three TF-IDF candidates split the error budget differently: XGBoost is the
+most conservative about accusing (specificity 0.9667, 10 false accusations) but
+misses the most AI text (sensitivity 0.8867); Linear SVM is the most balanced.
 
 ---
 
@@ -134,37 +173,50 @@ Accuracy = (Sensitivity + Specificity) / 2
 ```
 
 holds identically, not approximately — confirmed on the baseline:
-(0.9067 + 0.9167) / 2 = 0.9117. F1 tracks the same underlying quantities. Those
+(0.9100 + 0.9433) / 2 = 0.9267. F1 tracks the same underlying quantities. Those
 four criteria are one dimension wearing four hats, and ranking on them
 reproduces the accuracy ordering with extra arithmetic.
 
 The criteria that genuinely conflict are the ones a results table usually omits
 (`src/benchmark.py`):
 
-| Model | Accuracy | F1 | Latency (ms) | Size (MB) | LIME time (s) |
-|---|---|---|---|---|---|
-| Logistic Regression | 0.9117 | 0.9112 | 0.285 | 0.22 | 0.051 |
-| Linear SVM | 0.9267 | 0.9272 | 1.067 | 0.37 | 0.053 |
-| XGBoost | 0.9367 | 0.9354 | 0.370 | 0.65 | 0.053 |
-| DistilBERT | 0.9783 | 0.9788 | 17.272 | 256.33 | 10.639 |
+| Model | Accuracy | F1 | Latency (ms) | Size (MB) | LIME time (s) | Content share |
+|---|---|---|---|---|---|---|
+| Logistic Regression | 0.9267 | 0.9254 | 0.28 | 0.90 | 0.07 | 28.4% |
+| Linear SVM | 0.9517 | 0.9521 | 1.03 | 1.51 | 0.07 | 32.5% |
+| XGBoost | 0.9267 | 0.9236 | 0.53 | 1.22 | 0.07 | 17.1% |
+| DistilBERT | 0.9817 | 0.9820 | 15.23 | 256.33 | 9.01 | 44.6% |
+| *LogReg-Content* | *0.8867* | *0.8863* | *0.26* | *0.93* | *0.05* | *99.9%* |
 
-DistilBERT is the most accurate model and simultaneously **61× slower**,
-**1,168× larger** and **208× more expensive to explain**. No model is best on
+DistilBERT is the most accurate model and simultaneously **55× slower**,
+**285× larger** and **137× more expensive to explain**. No model is best on
 everything, which is the precondition for a multi-criteria method to be doing
 real work.
 
 ![Decision criteria](figures/criteria_comparison.png)
 
-The figure shows the shape of the decision at a glance: the two quality panels
-are nearly flat across models, while the three cost panels — all log-scaled —
-have DistilBERT towering over the rest.
+The figure shows the shape of the decision at a glance: the quality panels are
+nearly flat across models, while the cost panels — all log-scaled — have
+DistilBERT towering over the rest.
 
 Latency is measured one text at a time rather than batched, because the demo and
 the explainer classify single inputs; that is the latency a user experiences.
-Including **LIME explanation time** as a criterion is what ties the two halves of
-this project together: in a system whose purpose is explainable classification,
-the cost of producing an explanation is a property of the model, not an
-implementation detail.
+
+**Explanation content share.** Two criteria concern explanation, and they
+measure different things. LIME time is a cost; `content_share` is a quality. It
+is the percentage of explanation weight carried by words that are not English
+stop words, averaged over ten test passages — how much of an explanation a
+reader can act on. An explanation reading `and +0.27, the +0.18, is +0.21` is
+produced just as quickly as one reading `emissions, sustainable, renewable`, and
+tells the reader nothing; timing alone cannot distinguish them. Including it is
+what ties the two halves of this project together: in a system whose purpose is
+explainable classification, the *quality* of an explanation is a property of the
+model, not an implementation detail.
+
+The criterion discriminates across the candidates without being decisive on its
+own — XGBoost at 17.1% against DistilBERT's 44.6% is a 2.6× spread — and,
+importantly, adding it does not change the winner: Linear SVM ranks first with
+or without it. It describes a real dimension rather than manufacturing a result.
 
 ### 4.2 Criterion importance
 
@@ -175,11 +227,17 @@ bare decimals:
 
 | Criterion | Importance | TFN | Crisp weight | Rationale |
 |---|---|---|---|---|
-| accuracy | Very High | (7, 9, 9) | 0.294 | the headline measure of the task |
-| f1 | High | (5, 7, 9) | 0.247 | balances the two error directions |
-| latency_ms | Medium | (3, 5, 7) | 0.176 | experienced on every use |
-| size_mb | Low | (1, 3, 5) | 0.106 | nothing here targets a constrained device |
-| lime_seconds | Medium | (3, 5, 7) | 0.176 | waiting for the explanation costs as much as waiting for the prediction |
+| accuracy | Very High | (7, 9, 9) | 0.236 | the headline measure of the task |
+| f1 | High | (5, 7, 9) | 0.198 | balances the two error directions |
+| content_share | High | (5, 7, 9) | 0.198 | a fast explanation made of function words tells the reader nothing |
+| latency_ms | Medium | (3, 5, 7) | 0.142 | experienced on every use |
+| lime_seconds | Medium | (3, 5, 7) | 0.142 | waiting for the explanation costs as much as waiting for the prediction |
+| size_mb | Low | (1, 3, 5) | 0.085 | nothing here targets a constrained device |
+
+`content_share` is rated High rather than Very High: a detector that explains
+itself beautifully but classifies poorly is of no use, so accuracy retains
+primacy. It is rated above the cost criteria because explanation quality is the
+project's stated purpose, not a convenience.
 
 Fuzzy TOPSIS consumes the TFNs directly; crisp TOPSIS uses their centroids
 `(l+m+u)/3`, normalised. Deriving both from a single judgement prevents the two
@@ -190,13 +248,14 @@ schemes leaves the conclusion intact:
 
 | Weighting | TOPSIS | Fuzzy TOPSIS |
 |---|---|---|
-| Uniform | XGBoost > LogReg > SVM > DistilBERT | LogReg = XGBoost > SVM > DistilBERT |
-| Linguistic (adopted) | XGBoost > SVM > LogReg > DistilBERT | LogReg = XGBoost > SVM > DistilBERT |
-| Quality-led | XGBoost > SVM > LogReg > DistilBERT | LogReg = XGBoost > SVM > DistilBERT |
+| Uniform | SVM > LogReg > XGBoost > DistilBERT | SVM > LogReg > XGBoost > DistilBERT |
+| Linguistic (adopted) | SVM > LogReg > XGBoost > DistilBERT | SVM > LogReg > XGBoost > DistilBERT |
+| Quality-led | SVM > LogReg > XGBoost > DistilBERT | SVM > LogReg > XGBoost > DistilBERT |
 
-XGBoost ranks first and DistilBERT last under every scheme; only second and third
-place exchange. Demonstrating that the result survives the weighting is a
-stronger defence than any argument for one particular set of numbers.
+Linear SVM ranks first and DistilBERT last under every scheme, and unlike the
+previous revision the two methods now agree on the complete ordering.
+Demonstrating that the result survives the weighting is a stronger defence than
+any argument for one particular set of numbers.
 
 ### 4.3 TOPSIS
 
@@ -205,10 +264,15 @@ distances, closeness `CC = d⁻/(d⁺+d⁻)`.
 
 | Rank | Model | d⁺ | d⁻ | CC |
 |---|---|---|---|---|
-| 1 | **XGBoost** | 0.0087 | 0.2678 | **0.9685** |
-| 2 | Linear SVM | 0.0132 | 0.2633 | 0.9521 |
-| 3 | Logistic Regression | 0.0137 | 0.2684 | 0.9514 |
-| 4 | DistilBERT | 0.2684 | 0.0137 | 0.0486 |
+| 1 | **Linear SVM** | 0.0382 | 0.2154 | **0.8493** |
+| 2 | Logistic Regression | 0.0506 | 0.2174 | 0.8113 |
+| 3 | XGBoost | 0.0851 | 0.2131 | 0.7145 |
+| 4 | DistilBERT | 0.2146 | 0.0851 | 0.2840 |
+
+The ablation is excluded from this table. Ranked alongside the candidates it
+scores a closeness of 0.9479 against Linear SVM's 0.653 — not a narrow win but
+an outlier, which is the signature of an alternative that cannot lose on a
+criterion. That gap is the reason it is reported rather than ranked.
 
 ### 4.4 Fuzzy TOPSIS
 
@@ -226,14 +290,22 @@ percentages, so their bands are a stated assumption recorded in full in
 interactively driven classifier, deliberately not derived from the observed
 measurements, so they do not shift when the candidate set changes.
 
+`content_share` is a percentage but not a quality score, so the accuracy bands
+do not transfer: 90% accuracy is excellent, whereas an explanation that is 90%
+content words is close to ideal. It has its own band table (>90 outstanding, >70
+excellent, >50 very good, >30 good, >15 fair), reading 100% as every highlighted
+word carrying meaning and below 15% as an explanation made almost entirely of
+grammar words.
+
 ![Linguistic decision matrix](figures/linguistic_matrix.png)
 
-| Model | accuracy | f1 | latency | size | LIME time |
-|---|---|---|---|---|---|
-| Logistic Regression | excellent | excellent | outstanding | outstanding | outstanding |
-| Linear SVM | excellent | excellent | excellent | outstanding | outstanding |
-| XGBoost | excellent | excellent | outstanding | outstanding | outstanding |
-| DistilBERT | outstanding | outstanding | very good | good | good |
+| Model | accuracy | f1 | latency | size | LIME time | content share |
+|---|---|---|---|---|---|---|
+| Logistic Regression | excellent | excellent | outstanding | outstanding | outstanding | fair |
+| Linear SVM | outstanding | outstanding | excellent | excellent | outstanding | good |
+| XGBoost | excellent | excellent | outstanding | excellent | outstanding | fair |
+| DistilBERT | outstanding | outstanding | very good | good | good | good |
+| *LogReg-Content* | *very good* | *very good* | *outstanding* | *outstanding* | *outstanding* | *outstanding* |
 
 Distances use the vertex metric, and the fuzzy ideal and anti-ideal are computed
 as the componentwise maximum and minimum of the weighted matrix per criterion.
@@ -245,24 +317,24 @@ as the componentwise maximum and minimum of the weighted matrix per criterion.
 | 3 | Linear SVM | 0.6368 |
 | 4 | DistilBERT | 0.2866 |
 
-**The tie is real and is reported rather than broken silently.** Logistic
-Regression and XGBoost hold identical categories on all five criteria: 0.9117 and
-0.9367 are both simply ">90% excellent". The linguistic scale is too coarse to
-separate them, which is a substantive statement about how similar they are, not a
-defect. TOPSIS, working from the raw values, does separate them.
+Logistic Regression and XGBoost hold identical categories on five of the six
+criteria — 0.9267 for both is simply ">90% excellent" — and are separated only by
+`content_share`, where XGBoost's 17.1% and the baseline's 28.4% both fall in
+"fair". TOPSIS, working from the raw values, separates them.
 
 ### 4.5 What the two methods agree on
 
-Both rank **DistilBERT last**. Its accuracy advantage is worth one linguistic
-category — excellent to outstanding — while its cost drops it two categories on
-both size and explanation time. Selection follows the crisp ranking, on the
-stated grounds that it works from raw values and can distinguish models the
-linguistic scale rates identically.
+The two methods now agree on the **complete ordering**, which was not true of the
+previous revision: `SVM > LogReg > XGBoost > DistilBERT` under both. Both rank
+**DistilBERT last**. Its accuracy advantage is worth one linguistic category —
+excellent to outstanding — while its cost drops it two categories on both size
+and explanation time.
 
-**Selected model: XGBoost.**
+**Selected model: Linear SVM.**
 
 This is the substantive finding of the analysis. A measurably better classifier
-exists, and the decision analysis concludes that its cost is not justified in
+exists — DistilBERT, by five accuracy points and with a disjoint confidence
+interval — and the decision analysis concludes that its cost is not justified in
 this setting. That is precisely what a multi-criteria method is for: it makes the
 trade-off explicit and auditable instead of leaving it to whoever reads the
 accuracy column first.
@@ -274,17 +346,15 @@ remainder:
 
 ![Weight sensitivity](figures/sensitivity.png)
 
-| Quality weight | TOPSIS winner |
-|---|---|
-| 0.00 – 0.05 | Logistic Regression |
-| 0.10 – 0.95 | **XGBoost** |
-| 1.00 | DistilBERT |
+| Quality weight | TOPSIS winner | Fuzzy TOPSIS winner |
+|---|---|---|
+| 0.00 – 1.00 | **Linear SVM** | **Linear SVM** |
 
-DistilBERT wins only at a quality weight of exactly 1.00 — that is, only when
-cost is given no weight whatsoever. XGBoost holds the entire practical range.
-This is not a robustness check that happened to pass; it locates the precise
-condition under which the recommendation would change, and that condition is
-degenerate.
+Linear SVM holds the entire range under both methods — there is no crossover
+point. It is the most accurate of the three cheap models and pays almost nothing
+for it: 1.03 ms against the baseline's 0.28 ms, both imperceptible, and an
+identical 0.07 s to explain. DistilBERT never wins, because at every weighting
+its 256 MB and 9 s explanation time outweigh a five-point accuracy gain.
 
 ### 4.7 What the ranking is not used for
 
@@ -342,17 +412,18 @@ confidence.
 
 | Model | Faithfulness (Δ probability) | Sharpness | Stability | Mean confidence |
 |---|---|---|---|---|
-| Logistic Regression | +0.2321 | 0.1200 | 0.997 | 0.693 |
-| Linear SVM | +0.4754 | 0.2301 | 0.993 | 0.912 |
-| **XGBoost** | **+0.2508** | 0.1325 | **0.925** | 0.987 |
-| DistilBERT | +0.1736 | 0.2389 | 0.557 | 0.999 |
+| Logistic Regression | +0.1511 | 0.0595 | 0.950 | 0.740 |
+| **Linear SVM** | **+0.1943** | 0.1114 | **0.932** | 0.979 |
+| XGBoost | +0.1989 | 0.1863 | 0.816 | 0.989 |
+| DistilBERT | +0.1332 | 0.2452 | 0.544 | 0.999 |
+| *LogReg-Content* | *+0.1346* | *0.0646* | *0.997* | *0.654* |
 
 Every model shows a clearly positive probability drop, so LIME is identifying
 words the models genuinely use rather than producing plausible noise. The
-selected model, XGBoost, is faithful (+0.2508) and stable (0.925).
+selected model, Linear SVM, is faithful (+0.1943) and stable (0.932).
 
 **Stability falls as confidence rises.** DistilBERT, at 0.999 mean confidence,
-returns explanations that correlate only 0.557 across perturbation seeds — its
+returns explanations that correlate only 0.544 across perturbation seeds — its
 word weights move substantially between runs. This corroborates the ranking of
 §4 from an independent direction: the transformer is not merely expensive to
 explain, its explanations are also the least reproducible.
@@ -401,6 +472,53 @@ to report. The better separated the decision boundary, the less informative the
 local explanation becomes. A system that wants both must accept a trade-off
 between them.
 
+The stability column shows the same tension ordered almost exactly by
+confidence: DistilBERT at 0.999 confidence is the least reproducible (0.544),
+while the ablation at 0.654 confidence is the most (0.997).
+
+**A second trade-off: readability against accuracy.** The `content_share` column
+of §4.1 shows that between 55% and 83% of every candidate's explanation weight
+falls on function words — `the`, `and`, `or`, `is`. The natural assumption is
+that this is a defect of the features. It is not. Training the same logistic
+regression on each half of the vocabulary separately:
+
+| Input | Accuracy | F1 |
+|---|---|---|
+| Full text | 0.9267 | 0.9254 |
+| Content words only | 0.9050 | 0.9048 |
+| Function words only | 0.9017 | 0.8998 |
+
+**The signal is redundantly encoded.** Each half independently carries about 90%
+accuracy. Function words are not *more informative* than content words; LIME
+favours them because they recur many times per passage, so deleting one shifts
+the probability further than deleting a content word appearing once. That is a
+mechanical property of LIME's deletion mechanism interacting with term
+frequency, not a fact about where the evidence lies.
+
+Because the signal is redundant, the choice is available. The `LogReg-Content`
+ablation takes it: identical to the baseline except that function words are
+excluded at the feature level, so LIME *cannot* attribute to them.
+
+| | Accuracy | Content share |
+|---|---|---|
+| Logistic Regression | 0.9267 | 28.4% |
+| LogReg-Content | 0.8867 | 99.9% |
+
+Readable explanations cost **4.0 accuracy points**. The comparison is
+like-for-like — same pipeline, same split, differing only in `stop_words` — so
+the figure isolates the cost of the restriction rather than confounding it with
+a change of model class. The same passage explained by each:
+
+| Model | Top LIME words |
+|---|---|
+| Logistic Regression | `can +0.050, be +0.048, these +0.038, used +0.037, such +0.034` |
+| LogReg-Content | `factors +0.044, used +0.038, allows +0.036, make +0.029, example +0.022` |
+
+Its 99.9% `content_share` is definitional, not an achievement, which is why it
+is excluded from the ranking (§4.3). Its purpose is to establish the frontier: it
+converts "the explanations are mostly function words" from a complaint into a
+price.
+
 ### 5.6 A confident failure, visible only through the explanation
 
 Given *"As an AI language model, I don't have personal experiences"* — the
@@ -417,7 +535,7 @@ near-zero attributions signal that the prediction rests on no identifiable
 evidence. A high-confidence prediction with a flat explanation is a warning sign,
 and it is visible only because the explanation was computed.
 
-The demonstration set in `src/demo.py` therefore contains both short crafted
+The demonstration set in `src/explain.py` therefore contains both short crafted
 sentences and real HC3 excerpts. On in-distribution text the selected model's
 peak weights reach 0.03–0.22; on the short sentences they fall to 0.006–0.013.
 Running both groups makes the contrast visible rather than leaving it as a claim.
@@ -433,39 +551,57 @@ Running both groups makes the contrast visible rather than leaving it as a claim
    No Claude, Gemini or Llama output appears, and no model has been tested against
    a writer deliberately trying to evade detection.
 3. **Out-of-distribution fragility.** As §5.6 shows, performance on short text
-   bears no relation to the headline 0.9783.
+   bears no relation to the headline 0.9817.
 4. **LIME is local and stochastic.** Explanations describe one prediction, not
    the model. The seed is fixed for reproducibility, but §5.3 shows the underlying
    variance is real and largest for the most confident model.
 5. **`num_samples = 1000`, not LIME's default 5000.** This trades explanation
-   fidelity for speed; at 10.6 s per explanation for DistilBERT the default would
-   cost roughly 50 s each.
+   fidelity for speed; at 9.0 s per explanation for DistilBERT the default would
+   cost roughly 45 s each.
 6. **The linguistic scale is coarse by design.** It cannot separate models within
-   the same band, as the Logistic Regression / XGBoost tie demonstrates.
+   the same band, which is why crisp TOPSIS decides the final ordering.
 7. **Timings are single-machine.** All latency and explanation figures come from
    one Apple M4 using MPS. The ordering would hold elsewhere; the ratios would not.
+8. **`content_share` measures composition, not usefulness.** It counts how much
+   explanation weight avoids stop words; it cannot tell whether the content words
+   selected are the *right* ones. Faithfulness and stability are measured
+   separately for that reason, and no single number covers explanation quality.
+9. **Other placeholder artifacts may remain.** A scan found only the `URL_n`
+   family, but the leak was discovered by inspecting model coefficients rather
+   than by any systematic audit, so the absence of others is not established.
 
 ---
 
 ## 7. Conclusion
 
-Fine-tuning DistilBERT raised accuracy from **0.9117 to 0.9783**, with
+Fine-tuning DistilBERT raised accuracy from **0.9267 to 0.9817**, with
 non-overlapping confidence intervals and perfect recall on the AI class. It also
-cost 61× the latency, 1,168× the storage and 208× the explanation time, and its
-explanations proved the least stable of the four models.
+cost 55× the latency, 285× the storage and 137× the explanation time, and its
+explanations proved the least stable of the candidates.
 
-TOPSIS and fuzzy TOPSIS both rank it last, and both rank XGBoost at or near the
-top; XGBoost is selected. The recommendation survives every weighting tested and
-holds across the entire practical range of the quality/cost trade-off,
-surrendering only when cost is given literally no weight. The most accurate model
-available is not the one this system should deploy — and stating that
-conclusion with its reasoning exposed is the point of the exercise.
+TOPSIS and fuzzy TOPSIS both rank it last and both rank **Linear SVM** first, in
+complete agreement on the ordering. The recommendation survives every weighting
+tested and holds across the entire quality/cost sweep without a crossover point.
+The most accurate model available is not the one this system should deploy — and
+stating that conclusion with its reasoning exposed is the point of the exercise.
 
-LIME then supplies what accuracy cannot: evidence about *why* a prediction was
-made. Validated by a deletion test before being trusted, it showed the
-transformer correctly reading register where bag-of-words models could only count
-function words, and it exposed a confident failure on out-of-distribution input
-that no test-set metric would have revealed.
+Two findings emerged from taking explanation quality seriously enough to measure
+it. The first is a **label leak**: HC3's `URL_n` placeholders appear in 12.9% of
+human texts and 0.1% of AI texts, and the baseline had learned them. Removing
+them costs about half an accuracy point of previously inflated score. The second
+is that the classification signal is **redundantly encoded** — content words
+alone and function words alone each carry roughly 90% accuracy. LIME's preference
+for `the` and `and` therefore reflects how its deletion mechanism interacts with
+term frequency, not where the evidence actually lies. Because the signal is
+redundant, readable explanations are purchasable, and the ablation prices them at
+4.0 accuracy points for a rise in content share from 28.4% to 99.9%.
+
+LIME supplies what accuracy cannot: evidence about *why* a prediction was made.
+Validated by a deletion test before being trusted, it showed the transformer
+reading register where bag-of-words models could only count function words, it
+exposed a confident failure on out-of-distribution input that no test-set metric
+would have revealed, and — by making the composition of its own output
+measurable — it exposed a preprocessing artifact in the corpus itself.
 
 ---
 
@@ -503,7 +639,7 @@ python src/data_prep.py
 python src/train.py && python src/train_candidates.py && python src/train_advanced.py
 python src/benchmark.py && python src/select_model.py
 python src/validate_lime.py && python src/make_figures.py
-python src/demo.py --html && python src/compare.py
+python src/explain.py --demo && python src/compare.py
 ```
 
 `python src/topsis.py` verifies the ranking arithmetic against two published

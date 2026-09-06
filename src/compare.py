@@ -1,31 +1,12 @@
-"""
-compare.py
-----------
-Runs every candidate model over the same example sentences and prints
-their predictions and LIME explanations side by side.
-
-This is the script that makes the project's central point visible rather
-than asserted. The metrics table in benchmark.py says the transformer is
-more accurate; this shows *where* the models differ and *why* they
-disagree, one sentence at a time.
-
-Disagreements get written out as LIME HTML because they are the
-interesting cases: when a bag-of-words model and a transformer reach
-opposite conclusions about the same sentence, the highlighted text shows
-which words each one was reacting to. Agreement is unremarkable;
-disagreement is the demo.
-
-The examples come from demo.py rather than being duplicated here, so
-there is one list to maintain and the two scripts can never drift apart.
-"""
+"""Runs every candidate model over the same example sentences and prints their
+predictions and LIME explanations side by side."""
 
 import os
 import warnings
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
-from demo import EXAMPLES, LOADERS
-from explain import CLASS_NAMES, explain_text
+from explain import CLASS_NAMES, EXAMPLES, LOADERS, explain_text
 from metrics import format_table
 
 from paths import EXPLANATIONS_DIR, ensure_dirs
@@ -46,15 +27,7 @@ def load_all():
 
 
 def format_score(value):
-    """
-    Format a LIME weight without collapsing small ones to "+0.00".
-
-    A model that is very confident produces tiny weights: if removing any
-    single word leaves the probability at 0.999, the local linear model
-    LIME fits has almost no slope to report. Those values are genuinely
-    near zero and rounding them to two decimals hides the ordering
-    entirely, so small magnitudes switch to scientific notation.
-    """
+    """Format a LIME weight without collapsing small ones to "+0.00"."""
     if value == 0:
         return "+0"
     if abs(value) < 0.005:
