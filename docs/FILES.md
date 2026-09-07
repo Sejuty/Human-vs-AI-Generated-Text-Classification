@@ -61,7 +61,7 @@ Run these in the order above.
 
 | file | what it does |
 |---|---|
-| `explain.py` | Explains one text with LIME using the selected model. `--model` overrides; accepts raw text or a file path. `--demo` runs the built-in example set instead and writes a highlighted HTML report; `--html` writes that report for any input, to `explanations/` unless given a path. Owns `EXAMPLES`, the demonstration set `compare.py` also uses. |
+| `explain.py` | Explains one text with LIME using the selected model. `--model` overrides; accepts raw text or a file path. `--demo` runs the built-in example set instead and writes a highlighted HTML report; `--html` writes that report for any input, to `explanations/` unless given a path. Also reports faithfulness, stability, sharpness and mean confidence per explanation (`--no-validate` to skip); `validate_lime.py` imports the underlying `deletion_drop` / `explanation_stability` functions to run the same checks in aggregate. Owns `EXAMPLES`, the demonstration set `compare.py` also uses. |
 | `compare.py` | Runs every model over the same examples and reports where they disagree. |
 
 ## Supporting modules

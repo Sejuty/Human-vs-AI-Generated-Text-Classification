@@ -10,6 +10,7 @@ import re
 import warnings
 
 import joblib
+import numpy as np
 from lime.lime_text import LimeTextExplainer
 
 from paths import (BASELINE_MODEL, CONTENT_MODEL, EXPLANATIONS_DIR,
@@ -174,33 +175,105 @@ def explain_text(text, num_features=8, pipeline=None,
     return explanation.as_list(label=AI_LABEL)
 
 
+# ---- Explanation quality --------------------------------------------------
+#
+# The same deletion test and seed-stability check validate_lime.py runs in
+# aggregate over many texts, factored out here so a single explanation can
+# report them too. validate_lime.py imports these rather than redefining them.
+
+TOP_K = 5           # words deleted in the faithfulness/deletion test
+SEEDS = (0, 1, 2)   # perturbation seeds compared for stability
+
+
+def delete_words(text, words):
+    """Remove whole-word occurrences, leaving the rest of the text intact."""
+    out = text
+    for word in words:
+        out = re.sub(rf"\b{re.escape(word)}\b", " ", out)
+    return re.sub(r"\s+", " ", out).strip()
+
+
+def supporting_words(weights, predicted, k=TOP_K):
+    """The k words most supporting the predicted class."""
+    signed = [(w, s if predicted == 1 else -s) for w, s in weights]
+    return [w for w, s in sorted(signed, key=lambda ws: -ws[1])[:k] if s > 0]
+
+
+def deletion_drop(pipeline, text, weights, predicted, before, k=TOP_K):
+    """Faithfulness of one already-computed explanation: how far the
+    predicted-class probability falls after deleting the words LIME says
+    support it. None if nothing among the top features supports the
+    prediction, so there is nothing to delete."""
+    removed = supporting_words(weights, predicted, k=k)
+    if not removed:
+        return None
+    after = float(pipeline.predict_proba([delete_words(text, removed)])[0][predicted])
+    return before - after
+
+
+def explanation_stability(pipeline, text, num_features=10,
+                          num_samples=NUM_SAMPLES, seeds=SEEDS):
+    """Re-explains `text` under several perturbation seeds. Returns the
+    pairwise Pearson correlations and word-overlap ratios between runs, for
+    the caller to report directly or aggregate across texts."""
+    runs = [dict(explain_text(text, pipeline=pipeline, num_features=num_features,
+                              num_samples=num_samples, seed=s))
+            for s in seeds]
+    correlations, overlaps = [], []
+    for i in range(len(runs)):
+        for j in range(i + 1, len(runs)):
+            shared = set(runs[i]) & set(runs[j])
+            overlaps.append(len(shared) / max(len(runs[i]), len(runs[j])))
+            if len(shared) > 2:
+                a = [runs[i][w] for w in shared]
+                b = [runs[j][w] for w in shared]
+                if np.std(a) > 0 and np.std(b) > 0:
+                    correlations.append(np.corrcoef(a, b)[0, 1])
+    return correlations, overlaps
+
+
 def analyze(text, num_features=8, pipeline=None, num_samples=NUM_SAMPLES,
-            save_html=None, label=None):
-    """Prediction, confidence and LIME word weights for one text, in the shape
-    both the terminal output and the HTML report want."""
+            save_html=None, label=None, validate=True):
+    """Prediction, confidence, LIME word weights, and (unless `validate` is
+    False) explanation-quality figures for one text — faithfulness, stability
+    and sharpness — in the shape both the terminal output and the HTML report
+    want."""
     if pipeline is None:
         pipeline = load_selected_model()
 
     probabilities = pipeline.predict_proba([text])[0]
     predicted = int(pipeline.predict([text])[0])
+    confidence = float(probabilities[predicted])
+    weights = explain_text(text, num_features=num_features, pipeline=pipeline,
+                           num_samples=num_samples, save_html=save_html)
 
-    return {
+    result = {
         "label": label,
         "text": text,
         "predicted": predicted,
-        "confidence": float(probabilities[predicted]),
-        "weights": explain_text(text, num_features=num_features,
-                                pipeline=pipeline, num_samples=num_samples,
-                                save_html=save_html),
+        "confidence": confidence,
+        "weights": weights,
+        "sharpness": max((abs(s) for _, s in weights), default=0.0),
     }
+
+    if validate:
+        result["faithfulness_drop"] = deletion_drop(pipeline, text, weights,
+                                                     predicted, confidence)
+        correlations, overlaps = explanation_stability(pipeline, text,
+                                                        num_samples=num_samples)
+        result["stability"] = float(np.mean(correlations)) if correlations else float("nan")
+        result["word_overlap"] = float(np.mean(overlaps)) if overlaps else float("nan")
+
+    return result
 
 
 def print_explanation(text, num_features=8, pipeline=None,
-                      num_samples=NUM_SAMPLES, save_html=None):
+                      num_samples=NUM_SAMPLES, save_html=None, validate=True):
     """Print one prediction and the words driving it. Returns the analysis so
     callers building a report do not have to explain the text twice."""
     result = analyze(text, num_features=num_features, pipeline=pipeline,
-                     num_samples=num_samples, save_html=save_html)
+                     num_samples=num_samples, save_html=save_html,
+                     validate=validate)
 
     print(f"Text: {text}")
     print(f"Prediction: {CLASS_NAMES[result['predicted']]} "
@@ -223,6 +296,17 @@ def print_explanation(text, num_features=8, pipeline=None,
             print(f"  {word:15s} {score:+.4f}")
     else:
         print("  (none)")
+
+    print("\nExplanation quality:")
+    print(f"  Sharpness (peak |weight|)   {result['sharpness']:.4f}")
+    print(f"  Mean confidence             {result['confidence'] * 100:.1f}%")
+    if validate:
+        drop = result["faithfulness_drop"]
+        print(f"  Faithfulness (Δ prob.)      "
+              f"{f'{drop:+.4f}' if drop is not None else 'n/a — no supporting words'}")
+        stability = result["stability"]
+        print(f"  Stability (seed corr.)      "
+              f"{f'{stability:.3f}' if not np.isnan(stability) else 'n/a'}")
 
     return result
 
@@ -303,10 +387,43 @@ td.score {
   width: 66px; text-align: right; color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+.stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+  margin: 18px 0 4px; padding-top: 14px; border-top: 1px solid var(--line);
+}
+.stats .stat { text-align: center; }
+.stats .stat .n {
+  font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 600;
+}
+.stats .stat .l {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--muted); margin-top: 2px;
+}
 .legend { color: var(--muted); font-size: 12px; margin-top: 26px; }
 .legend b.ai { color: var(--ai); }
 .legend b.human { color: var(--human); }
 """
+
+
+def _stat(value, label):
+    return f'<div class="stat"><div class="n">{value}</div><div class="l">{label}</div></div>'
+
+
+def _stats_row(result):
+    """Faithfulness, stability, sharpness and mean confidence, the same four
+    figures validate_lime.py reports in aggregate, for this one explanation."""
+    drop = result.get("faithfulness_drop")
+    drop_str = f"{drop:+.3f}" if drop is not None else "n/a"
+    stability = result.get("stability", float("nan"))
+    stability_str = f"{stability:.3f}" if not np.isnan(stability) else "n/a"
+    return (
+        '<div class="stats">'
+        + _stat(drop_str, "Faithfulness")
+        + _stat(stability_str, "Stability")
+        + _stat(f"{result['sharpness']:.3f}", "Sharpness")
+        + _stat(f"{result['confidence'] * 100:.1f}%", "Mean confidence")
+        + '</div>'
+    )
 
 
 def _highlight(text, weights):
@@ -359,7 +476,8 @@ def _card(result):
         f'<span class="pct">{result["confidence"] * 100:.1f}% confidence</span></div>'
         f'<div class="meter"><i class="{side}" '
         f'style="width:{result["confidence"] * 100:.1f}%"></i></div>'
-        f'{_weight_table(result["weights"])}</section>'
+        f'{_weight_table(result["weights"])}'
+        f'{_stats_row(result) if "stability" in result else ""}</section>'
     )
 
 
@@ -415,7 +533,12 @@ def main():
     parser.add_argument("--html", nargs="?", const=AUTO_HTML, metavar="PATH",
                         help="also write the HTML report; bare, it is named for "
                              "the model and dropped in explanations/")
+    parser.add_argument("--no-validate", action="store_true",
+                        help="skip the faithfulness/stability check (stability "
+                             "alone re-explains each text 3 more times; skip "
+                             "this for a quick look, especially with --model advanced)")
     args = parser.parse_args()
+    validate = not args.no_validate
 
     if args.demo and args.text:
         parser.error("--demo runs the built-in examples; do not also pass a text")
@@ -431,7 +554,8 @@ def main():
             print(f"Example ({label})")
             print("-" * 60)
             result = print_explanation(text, pipeline=pipeline,
-                                       num_samples=args.num_samples)
+                                       num_samples=args.num_samples,
+                                       validate=validate)
             result["label"] = label
             results.append(result)
             print()
@@ -444,7 +568,8 @@ def main():
         else:
             text = source
         results = [print_explanation(text, pipeline=pipeline,
-                                     num_samples=args.num_samples)]
+                                     num_samples=args.num_samples,
+                                     validate=validate)]
         path = _report_path(args.html, key, "custom")
 
     if path:

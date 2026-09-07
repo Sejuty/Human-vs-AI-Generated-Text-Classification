@@ -188,8 +188,8 @@ The criteria that genuinely conflict are the ones a results table usually omits
 | DistilBERT | 0.9817 | 0.9820 | 15.23 | 256.33 | 9.01 | 44.6% |
 | *LogReg-Content* | *0.8867* | *0.8863* | *0.26* | *0.93* | *0.05* | *99.9%* |
 
-DistilBERT is the most accurate model and simultaneously **55× slower**,
-**285× larger** and **137× more expensive to explain**. No model is best on
+DistilBERT is the most accurate model and simultaneously **54× slower**,
+**285× larger** and **133× more expensive to explain**. No model is best on
 everything, which is the precondition for a multi-criteria method to be doing
 real work.
 
@@ -312,15 +312,17 @@ as the componentwise maximum and minimum of the weighted matrix per criterion.
 
 | Rank | Model | CC |
 |---|---|---|
-| 1= | **Logistic Regression** | **0.7134** |
-| 1= | **XGBoost** | **0.7134** |
-| 3 | Linear SVM | 0.6368 |
-| 4 | DistilBERT | 0.2866 |
+| 1 | **Linear SVM** | **0.9034** |
+| 2 | Logistic Regression | 0.5499 |
+| 3 | XGBoost | 0.5214 |
+| 4 | DistilBERT | 0.4501 |
 
 Logistic Regression and XGBoost hold identical categories on five of the six
-criteria — 0.9267 for both is simply ">90% excellent" — and are separated only by
-`content_share`, where XGBoost's 17.1% and the baseline's 28.4% both fall in
-"fair". TOPSIS, working from the raw values, separates them.
+criteria — 0.9267 for both is simply ">90% excellent" — and are separated only
+by `size_mb`, where the baseline's 0.90 MB reaches "outstanding" and XGBoost's
+1.22 MB falls one band short at "excellent". Both are rated "fair" on
+`content_share` alike, so that criterion does not distinguish them here; it is
+the size gap that gives Logistic Regression the higher closeness.
 
 ### 4.5 What the two methods agree on
 
@@ -576,7 +578,7 @@ Running both groups makes the contrast visible rather than leaving it as a claim
 
 Fine-tuning DistilBERT raised accuracy from **0.9267 to 0.9817**, with
 non-overlapping confidence intervals and perfect recall on the AI class. It also
-cost 55× the latency, 285× the storage and 137× the explanation time, and its
+cost 54× the latency, 285× the storage and 133× the explanation time, and its
 explanations proved the least stable of the candidates.
 
 TOPSIS and fuzzy TOPSIS both rank it last and both rank **Linear SVM** first, in

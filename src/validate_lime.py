@@ -3,7 +3,6 @@ describing the models, rather than merely looking plausible."""
 
 import json
 import os
-import re
 import warnings
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -11,7 +10,8 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 import numpy as np
 import pandas as pd
 
-from explain import NUM_SAMPLES, explain_text
+from explain import (NUM_SAMPLES, SEEDS, deletion_drop, explain_text,
+                     explanation_stability)
 from metrics import format_table
 
 from paths import (BASELINE_MODEL, CONTENT_MODEL, LIME_VALIDATION, SVM_MODEL,
@@ -19,8 +19,6 @@ from paths import (BASELINE_MODEL, CONTENT_MODEL, LIME_VALIDATION, SVM_MODEL,
 
 N_FAITHFULNESS = 8   # texts used for the deletion test
 N_STABILITY = 4      # texts re-explained under several seeds
-SEEDS = (0, 1, 2)    # seeds compared for stability
-TOP_K = 5            # words deleted in the faithfulness test
 
 # Minimum mean probability drop for the deletion test to count as passing.
 FAITHFULNESS_FLOOR = 0.05
@@ -29,22 +27,10 @@ FAITHFULNESS_FLOOR = 0.05
 AI_REGISTER = ["it is important", "as an ai", "in conclusion", "keep in mind"]
 
 
-def delete_words(text, words):
-    """Remove whole-word occurrences, leaving the rest of the text intact."""
-    out = text
-    for word in words:
-        out = re.sub(rf"\b{re.escape(word)}\b", " ", out)
-    return re.sub(r"\s+", " ", out).strip()
-
-
-def supporting_words(weights, predicted, k=TOP_K):
-    """The k words most supporting the predicted class."""
-    signed = [(w, s if predicted == 1 else -s) for w, s in weights]
-    return [w for w, s in sorted(signed, key=lambda ws: -ws[1])[:k] if s > 0]
-
-
 def faithfulness(pipeline, texts, num_samples=NUM_SAMPLES):
-    """Mean drop in predicted-class probability after deleting top words."""
+    """Mean drop in predicted-class probability after deleting top words.
+    The per-text deletion test is `explain.deletion_drop`; this aggregates it
+    over `texts`."""
     drops, sharpness, confidences = [], [], []
     for text in texts:
         weights = explain_text(text, pipeline=pipeline, num_features=8,
@@ -52,12 +38,11 @@ def faithfulness(pipeline, texts, num_samples=NUM_SAMPLES):
         predicted = int(pipeline.predict([text])[0])
         before = float(pipeline.predict_proba([text])[0][predicted])
 
-        removed = supporting_words(weights, predicted)
-        if not removed:
+        drop = deletion_drop(pipeline, text, weights, predicted, before)
+        if drop is None:
             continue
-        after = float(pipeline.predict_proba([delete_words(text, removed)])[0][predicted])
 
-        drops.append(before - after)
+        drops.append(drop)
         sharpness.append(max(abs(s) for _, s in weights))
         confidences.append(before)
 
@@ -77,21 +62,15 @@ def faithfulness(pipeline, texts, num_samples=NUM_SAMPLES):
 
 
 def stability(pipeline, texts, seeds=SEEDS, num_samples=NUM_SAMPLES):
-    """Mean pairwise correlation of word weights across perturbation seeds."""
+    """Mean pairwise correlation of word weights across perturbation seeds.
+    The per-text re-explanation is `explain.explanation_stability`; this
+    aggregates it over `texts`."""
     correlations, overlaps = [], []
     for text in texts:
-        runs = [dict(explain_text(text, pipeline=pipeline, num_features=10,
-                                  num_samples=num_samples, seed=s))
-                for s in seeds]
-        for i in range(len(runs)):
-            for j in range(i + 1, len(runs)):
-                shared = set(runs[i]) & set(runs[j])
-                overlaps.append(len(shared) / max(len(runs[i]), len(runs[j])))
-                if len(shared) > 2:
-                    a = [runs[i][w] for w in shared]
-                    b = [runs[j][w] for w in shared]
-                    if np.std(a) > 0 and np.std(b) > 0:
-                        correlations.append(np.corrcoef(a, b)[0, 1])
+        c, o = explanation_stability(pipeline, text, num_features=10,
+                                     num_samples=num_samples, seeds=seeds)
+        correlations += c
+        overlaps += o
 
     return {
         "mean_weight_correlation": float(np.mean(correlations)) if correlations else float("nan"),

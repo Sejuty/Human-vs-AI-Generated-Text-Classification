@@ -111,7 +111,12 @@ python src/compare.py                    # every model compared
 which means running hundreds of explanations.
 
 `explain.py` uses whichever model `select_model.py` chose. Pass
-`--model baseline|svm|xgboost|content|advanced` to override.
+`--model baseline|svm|xgboost|content|advanced` to override. Each explanation is
+also checked the way `validate_lime.py` checks a whole model — faithfulness
+(does deleting the highlighted words actually move the prediction?), stability
+(does the explanation survive a different perturbation seed?) and sharpness;
+`--no-validate` skips this, since stability alone re-explains the text three
+more times.
 
 ## What each stage does
 
